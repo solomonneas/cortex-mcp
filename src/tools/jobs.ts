@@ -1,0 +1,242 @@
+import { z } from "zod";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { CortexClient } from "../client.js";
+
+export function registerJobTools(
+  server: McpServer,
+  client: CortexClient,
+): void {
+  server.tool(
+    "cortex_get_job",
+    "Get the status and details of an analysis job",
+    {
+      jobId: z.string().describe("The job ID to look up"),
+    },
+    async ({ jobId }) => {
+      try {
+        const job = await client.getJob(jobId);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(job, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error getting job: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "cortex_get_job_report",
+    "Get the full report of a completed analysis job",
+    {
+      jobId: z.string().describe("The job ID to get the report for"),
+    },
+    async ({ jobId }) => {
+      try {
+        const report = await client.getJobReport(jobId);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(report, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error getting job report: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "cortex_wait_and_get_report",
+    "Wait for a job to complete and return the full report (with polling timeout)",
+    {
+      jobId: z.string().describe("The job ID to wait for"),
+      timeout: z
+        .number()
+        .int()
+        .min(1)
+        .max(3600)
+        .default(300)
+        .describe("Timeout in seconds (default: 300, max: 3600)"),
+    },
+    async ({ jobId, timeout }) => {
+      try {
+        const report = await client.waitAndGetReport(jobId, timeout);
+
+        const taxonomies = report.report?.summary?.taxonomies ?? [];
+        const taxonomySummary = taxonomies.map(
+          (t) => `[${t.level}] ${t.namespace}:${t.predicate} = ${t.value}`,
+        );
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  jobId: report.id,
+                  status: report.status,
+                  analyzerName: report.analyzerName,
+                  taxonomies: taxonomySummary,
+                  fullReport: report.report,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error waiting for report: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "cortex_list_jobs",
+    "List recent analysis jobs with optional filters",
+    {
+      dataType: z
+        .string()
+        .optional()
+        .describe("Filter by data type"),
+      analyzerName: z
+        .string()
+        .optional()
+        .describe("Filter by analyzer name"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(500)
+        .default(50)
+        .describe("Maximum number of jobs to return (default: 50)"),
+      status: z
+        .string()
+        .optional()
+        .describe(
+          "Filter by status (Waiting, InProgress, Success, Failure, Deleted)",
+        ),
+    },
+    async ({ dataType, analyzerName, limit, status }) => {
+      try {
+        const must: Record<string, unknown>[] = [];
+
+        if (dataType) {
+          must.push({ _field: "dataType", _value: dataType });
+        }
+        if (analyzerName) {
+          must.push({ _field: "analyzerName", _value: analyzerName });
+        }
+        if (status) {
+          must.push({ _field: "status", _value: status });
+        }
+
+        const query: Record<string, unknown> =
+          must.length > 0
+            ? { _and: must }
+            : { _field: "status", _value: "*" };
+
+        const jobs = await client.searchJobs({
+          query,
+          range: `0-${limit}`,
+          sort: ["-createdAt"],
+        });
+
+        const summary = jobs.map((j) => ({
+          id: j.id,
+          analyzerName: j.analyzerName,
+          dataType: j.dataType,
+          data: j.data,
+          status: j.status,
+          startDate: j.startDate
+            ? new Date(j.startDate).toISOString()
+            : undefined,
+          endDate: j.endDate
+            ? new Date(j.endDate).toISOString()
+            : undefined,
+        }));
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(summary, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error listing jobs: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "cortex_get_job_artifacts",
+    "Get artifacts (extracted observables/IOCs) from a completed analysis job",
+    {
+      jobId: z.string().describe("The job ID to get artifacts for"),
+    },
+    async ({ jobId }) => {
+      try {
+        const artifacts = await client.getJobArtifacts(jobId);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(artifacts, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error getting job artifacts: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+}
