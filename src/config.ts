@@ -2,6 +2,7 @@ export interface CortexConfig {
   url: string;
   apiKey: string;
   verifySsl: boolean;
+  timeout: number;
 }
 
 export function getConfig(): CortexConfig {
@@ -16,10 +17,12 @@ export function getConfig(): CortexConfig {
   }
 
   const verifySsl = process.env.CORTEX_VERIFY_SSL !== "false";
+  const timeout = parseInt(process.env.CORTEX_TIMEOUT ?? "30", 10) * 1000;
 
   return {
     url: url.replace(/\/+$/, ""),
     apiKey,
     verifySsl,
+    timeout,
   };
 }

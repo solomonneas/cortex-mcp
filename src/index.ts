@@ -17,6 +17,11 @@ const server = new McpServer({
 });
 
 const config = getConfig();
+
+if (!config.verifySsl) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+}
+
 const client = new CortexClient(config);
 
 registerAnalyzerTools(server, client);

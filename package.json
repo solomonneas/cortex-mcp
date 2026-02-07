@@ -21,6 +21,10 @@
     "type": "git",
     "url": "https://github.com/solomonneas/cortex-mcp.git"
   },
+  "homepage": "https://github.com/solomonneas/cortex-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/solomonneas/cortex-mcp/issues"
+  },
   "keywords": [
     "mcp",
     "cortex",

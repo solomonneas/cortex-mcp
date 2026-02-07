@@ -14,6 +14,7 @@ import type {
 export class CortexClient {
   private baseUrl: string;
   private headers: Record<string, string>;
+  private timeout: number;
 
   constructor(private config: CortexConfig) {
     this.baseUrl = `${config.url}/api`;
@@ -21,6 +22,7 @@ export class CortexClient {
       Authorization: `Bearer ${config.apiKey}`,
       "Content-Type": "application/json",
     };
+    this.timeout = config.timeout;
   }
 
   private async request<T>(
@@ -28,27 +30,40 @@ export class CortexClient {
     options: RequestInit = {},
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`;
-    const response = await fetch(url, {
-      ...options,
-      headers: { ...this.headers, ...options.headers },
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      const messages: Record<number, string> = {
-        401: "Invalid API key or unauthorized access",
-        403: "Forbidden - insufficient permissions",
-        404: "Resource not found",
-        429: "Rate limit exceeded",
-        500: "Cortex internal server error",
-      };
-      const msg =
-        messages[response.status] ??
-        `HTTP ${response.status}: ${response.statusText}`;
-      throw new Error(`Cortex API error: ${msg}${body ? ` - ${body}` : ""}`);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: { ...this.headers, ...options.headers },
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        const messages: Record<number, string> = {
+          401: "Invalid API key or unauthorized access",
+          403: "Forbidden - insufficient permissions",
+          404: "Resource not found",
+          429: "Rate limit exceeded",
+          500: "Cortex internal server error",
+        };
+        const msg =
+          messages[response.status] ??
+          `HTTP ${response.status}: ${response.statusText}`;
+        throw new Error(`Cortex API error: ${msg}${body ? ` - ${body}` : ""}`);
+      }
+
+      return response.json() as Promise<T>;
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error(`Cortex API timeout after ${this.timeout}ms`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    return response.json() as Promise<T>;
   }
 
   // Analyzer methods
