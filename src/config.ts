@@ -1,6 +1,7 @@
 export interface CortexConfig {
   url: string;
   apiKey: string;
+  superadminKey?: string;
   verifySsl: boolean;
   timeout: number;
 }
@@ -16,12 +17,14 @@ export function getConfig(): CortexConfig {
     throw new Error("CORTEX_API_KEY environment variable is required");
   }
 
+  const superadminKey = process.env.CORTEX_SUPERADMIN_KEY || undefined;
   const verifySsl = process.env.CORTEX_VERIFY_SSL !== "false";
   const timeout = parseInt(process.env.CORTEX_TIMEOUT ?? "30", 10) * 1000;
 
   return {
     url: url.replace(/\/+$/, ""),
     apiKey,
+    superadminKey,
     verifySsl,
     timeout,
   };

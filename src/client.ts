@@ -9,34 +9,45 @@ import type {
   ActionJob,
   RunAnalyzerRequest,
   RunResponderRequest,
+  CortexStatus,
+  Organization,
+  CortexUser,
 } from "./types.js";
 
 export class CortexClient {
   private baseUrl: string;
-  private headers: Record<string, string>;
   private timeout: number;
 
   constructor(private config: CortexConfig) {
     this.baseUrl = `${config.url}/api`;
-    this.headers = {
-      Authorization: `Bearer ${config.apiKey}`,
-      "Content-Type": "application/json",
-    };
     this.timeout = config.timeout;
   }
 
   private async request<T>(
     path: string,
     options: RequestInit = {},
+    useSuperadmin = false,
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const authKey = useSuperadmin
+      ? (this.config.superadminKey ?? this.config.apiKey)
+      : this.config.apiKey;
+
+    // Cortex (Play Framework) rejects Content-Type: application/json on GET
+    // requests with no body. Only include it when there's a request body.
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${authKey}`,
+    };
+    if (options.body) {
+      headers["Content-Type"] = "application/json";
+    }
 
     try {
       const response = await fetch(url, {
         ...options,
-        headers: { ...this.headers, ...options.headers },
+        headers: { ...headers, ...(options.headers as Record<string, string>) },
         signal: controller.signal,
       });
 
@@ -139,6 +150,80 @@ export class CortexClient {
         method: "POST",
         body: JSON.stringify(data),
       },
+    );
+  }
+
+  // Status methods
+
+  async getStatus(): Promise<CortexStatus> {
+    return this.request<CortexStatus>("/status");
+  }
+
+  // Organization methods (superadmin)
+
+  get superadminAvailable(): boolean {
+    return !!this.config.superadminKey;
+  }
+
+  async listOrganizations(): Promise<Organization[]> {
+    return this.request<Organization[]>("/organization", {}, true);
+  }
+
+  async getOrganization(orgId: string): Promise<Organization> {
+    return this.request<Organization>(
+      `/organization/${encodeURIComponent(orgId)}`,
+      {},
+      true,
+    );
+  }
+
+  async createOrganization(data: {
+    name: string;
+    description: string;
+    status?: string;
+  }): Promise<Organization> {
+    return this.request<Organization>(
+      "/organization",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: data.name,
+          description: data.description,
+          status: data.status ?? "Active",
+        }),
+      },
+      true,
+    );
+  }
+
+  // User methods (superadmin for cross-org, org admin for own org)
+
+  async listUsers(): Promise<CortexUser[]> {
+    return this.request<CortexUser[]>("/user", {}, true);
+  }
+
+  async getUser(userId: string): Promise<CortexUser> {
+    return this.request<CortexUser>(
+      `/user/${encodeURIComponent(userId)}`,
+      {},
+      true,
+    );
+  }
+
+  async createUser(data: {
+    login: string;
+    name: string;
+    roles: string[];
+    organization: string;
+    password?: string;
+  }): Promise<CortexUser> {
+    return this.request<CortexUser>(
+      "/user",
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+      true,
     );
   }
 }

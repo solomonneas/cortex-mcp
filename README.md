@@ -5,16 +5,15 @@
 [![MCP](https://img.shields.io/badge/MCP-1.x-purple)](https://modelcontextprotocol.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-An MCP (Model Context Protocol) server for [Cortex](https://docs.strangebee.com/cortex/) - the observable analysis and active response engine by StrangeBee/TheHive Project.
-
-Cortex automates the analysis of observables (IPs, URLs, hashes, domains, emails, files) using analyzers and can execute response actions via responders. This MCP server exposes Cortex's full analysis pipeline to LLMs, enabling AI-driven observable enrichment and automated response orchestration.
+An MCP (Model Context Protocol) server for [Cortex](https://docs.strangebee.com/cortex/) by StrangeBee/TheHive Project. Cortex automates observable analysis (IPs, URLs, hashes, domains, emails, files) using analyzers and executes response actions via responders. This MCP server exposes Cortex's full analysis pipeline to LLMs for AI-driven observable enrichment and automated response.
 
 ## Features
 
-- **12 MCP tools** covering analyzers, jobs, responders, and bulk operations
+- **18 MCP tools** covering analyzers, jobs, responders, bulk operations, status, organizations, and users
 - **2 MCP resources** for browsing Cortex state
 - **2 MCP prompts** with guided investigation workflows
 - Full TLP/PAP support for data classification
+- Dual API key support: org-level operations + superadmin administration
 - Bulk analysis across all applicable analyzers with taxonomy aggregation
 - Structured error handling with meaningful messages
 
@@ -39,15 +38,18 @@ Set these environment variables before running the server:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `CORTEX_URL` | Yes | - | Cortex base URL (e.g., `https://cortex.example.com:9001`) |
-| `CORTEX_API_KEY` | Yes | - | API key for authentication |
+| `CORTEX_URL` | Yes | - | Cortex base URL (e.g., `http://cortex.example.com:9001`) |
+| `CORTEX_API_KEY` | Yes | - | API key for normal operations (org admin level) |
+| `CORTEX_SUPERADMIN_KEY` | No | - | Superadmin API key for org/user management |
 | `CORTEX_VERIFY_SSL` | No | `true` | Set to `false` to skip SSL verification |
+| `CORTEX_TIMEOUT` | No | `30` | Request timeout in seconds |
 
 Example `.env` file:
 ```env
-CORTEX_URL=https://cortex.example.com:9001
-CORTEX_API_KEY=your-api-key-here
-CORTEX_VERIFY_SSL=true
+CORTEX_URL=http://cortex.example.com:9001
+CORTEX_API_KEY=your-org-admin-key
+CORTEX_SUPERADMIN_KEY=your-superadmin-key
+CORTEX_VERIFY_SSL=false
 ```
 
 ## Usage
@@ -63,8 +65,9 @@ Add to your Claude Desktop MCP configuration (`claude_desktop_config.json`):
       "command": "node",
       "args": ["/path/to/cortex-mcp/dist/index.js"],
       "env": {
-        "CORTEX_URL": "https://cortex.example.com:9001",
-        "CORTEX_API_KEY": "your-api-key-here"
+        "CORTEX_URL": "http://cortex.example.com:9001",
+        "CORTEX_API_KEY": "your-org-admin-key",
+        "CORTEX_SUPERADMIN_KEY": "your-superadmin-key"
       }
     }
   }
@@ -74,20 +77,26 @@ Add to your Claude Desktop MCP configuration (`claude_desktop_config.json`):
 ### Standalone
 
 ```bash
-export CORTEX_URL=https://cortex.example.com:9001
-export CORTEX_API_KEY=your-api-key-here
+export CORTEX_URL=http://cortex.example.com:9001
+export CORTEX_API_KEY=your-org-admin-key
 npm start
 ```
 
 ### Development
 
 ```bash
-export CORTEX_URL=https://cortex.example.com:9001
-export CORTEX_API_KEY=your-api-key-here
+export CORTEX_URL=http://cortex.example.com:9001
+export CORTEX_API_KEY=your-org-admin-key
 npm run dev
 ```
 
 ## MCP Tools
+
+### Status
+
+| Tool | Description |
+|------|-------------|
+| `cortex_get_status` | Get Cortex instance health, version, and configuration |
 
 ### Analyzer Tools
 
@@ -121,6 +130,22 @@ npm run dev
 |------|-------------|
 | `cortex_analyze_observable` | Run ALL applicable analyzers and return aggregated results with taxonomy summary |
 
+### Organization Management (superadmin)
+
+| Tool | Description |
+|------|-------------|
+| `cortex_list_organizations` | List all organizations |
+| `cortex_get_organization` | Get details about a specific organization |
+| `cortex_create_organization` | Create a new organization |
+
+### User Management (superadmin)
+
+| Tool | Description |
+|------|-------------|
+| `cortex_list_users` | List all users across organizations |
+| `cortex_get_user` | Get details about a specific user |
+| `cortex_create_user` | Create a new user in an organization |
+
 ## MCP Resources
 
 | URI | Description |
@@ -137,6 +162,12 @@ npm run dev
 
 ## Examples
 
+### Check Cortex health
+
+```
+Use cortex_get_status to check if Cortex is running.
+```
+
 ### Analyze an IP address
 
 ```
@@ -144,7 +175,7 @@ Use cortex_analyze_observable to check the IP 185.220.101.42
 with dataType "ip", tlp 2, pap 2.
 ```
 
-The server will submit the IP to all analyzers that support the `ip` data type (VirusTotal, AbuseIPDB, etc.), wait for results, and return an aggregated report with taxonomy counts:
+The server will submit the IP to all analyzers that support the `ip` data type, wait for results, and return an aggregated report with taxonomy counts:
 
 ```json
 {
@@ -167,17 +198,17 @@ Use cortex_run_analyzer_by_name with analyzerName "VirusTotal",
 dataType "hash", data "44d88612fea8a8f36de82e1278abb02f"
 ```
 
-### Check job status
+### List organizations (superadmin)
 
 ```
-Use cortex_get_job with jobId "AWl2d8x1kDx6FO7wxPBn"
+Use cortex_list_organizations to see all Cortex organizations.
 ```
 
-### Execute a responder
+### Create a user (superadmin)
 
 ```
-Use cortex_run_responder with responderId "Mailer_1_0",
-objectType "case_artifact", objectId "~123456"
+Use cortex_create_user with login "analyst1", name "Jane Doe",
+organization "SOC", roles ["read", "analyze"]
 ```
 
 ## Supported Data Types
@@ -198,9 +229,15 @@ objectType "case_artifact", objectId "~123456"
 ## Testing
 
 ```bash
-npm test            # Run all tests
-npm run test:watch  # Run in watch mode
-npm run lint        # Type check only
+npm test              # Unit tests (36 tests)
+npm run test:watch    # Watch mode
+npm run lint          # Type check
+
+# Integration tests (requires live Cortex instance)
+CORTEX_URL=http://cortex:9001 \
+CORTEX_API_KEY=your-key \
+CORTEX_SUPERADMIN_KEY=your-superadmin-key \
+npx vitest run tests/integration.test.ts
 ```
 
 ## Project Structure
@@ -219,13 +256,29 @@ cortex-mcp/
       jobs.ts             # Job management tools
       responders.ts       # Responder tools
       bulk.ts             # Bulk operations
+      status.ts           # Health/version check
+      organizations.ts    # Org management (superadmin)
+      users.ts            # User management (superadmin)
   tests/
     client.test.ts        # API client unit tests
     tools.test.ts         # Tool handler unit tests
+    integration.test.ts   # Live instance integration tests
+  scripts/
+    proxmox_install.sh    # Proxmox LXC deployment script
   package.json
   tsconfig.json
   tsup.config.ts
   vitest.config.ts
+```
+
+## Deployment
+
+### Proxmox LXC
+
+A one-click installer is included for Proxmox VE environments:
+
+```bash
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/solomonneas/cortex-mcp/main/scripts/proxmox_install.sh)"
 ```
 
 ## License

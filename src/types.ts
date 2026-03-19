@@ -107,3 +107,48 @@ export interface JobSearchQuery {
   range?: string;
   sort?: string[];
 }
+
+export interface CortexStatus {
+  versions: {
+    Cortex: string;
+    Elastic4Play: string;
+    Play: string;
+    Elastic4s?: string;
+    "ElasticSearch client"?: string;
+    [key: string]: string | undefined;
+  };
+  config: {
+    protectDownloadsWith?: string;
+    authType: string[];
+    capabilities: string[];
+    ssoAutoLogin?: boolean;
+    [key: string]: unknown;
+  };
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
+  createdAt?: number;
+  createdBy?: string;
+  updatedAt?: number;
+  updatedBy?: string;
+  _type?: string;
+}
+
+export interface CortexUser {
+  id: string;
+  name: string;
+  organization: string;
+  roles: string[];
+  status: string;
+  hasKey?: boolean;
+  hasPassword?: boolean;
+  createdAt?: number;
+  createdBy?: string;
+  updatedAt?: number;
+  updatedBy?: string;
+  _type?: string;
+}

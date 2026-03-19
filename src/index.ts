@@ -6,37 +6,43 @@ import { registerAnalyzerTools } from "./tools/analyzers.js";
 import { registerJobTools } from "./tools/jobs.js";
 import { registerResponderTools } from "./tools/responders.js";
 import { registerBulkTools } from "./tools/bulk.js";
+import { registerStatusTools } from "./tools/status.js";
+import { registerOrganizationTools } from "./tools/organizations.js";
+import { registerUserTools } from "./tools/users.js";
 import { registerResources } from "./resources.js";
 import { registerPrompts } from "./prompts.js";
 
-const server = new McpServer({
-  name: "cortex-mcp",
-  version: "1.0.0",
-  description:
-    "MCP server for Cortex observable analysis and response engine",
-});
+async function main(): Promise<void> {
+  const config = getConfig();
 
-const config = getConfig();
+  if (!config.verifySsl) {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  }
 
-if (!config.verifySsl) {
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-}
+  const server = new McpServer({
+    name: "cortex-mcp",
+    version: "1.0.0",
+    description:
+      "MCP server for Cortex - observable analysis and active response engine by StrangeBee/TheHive Project",
+  });
 
-const client = new CortexClient(config);
+  const client = new CortexClient(config);
 
-registerAnalyzerTools(server, client);
-registerJobTools(server, client);
-registerResponderTools(server, client);
-registerBulkTools(server, client);
-registerResources(server, client);
-registerPrompts(server);
+  registerAnalyzerTools(server, client);
+  registerJobTools(server, client);
+  registerResponderTools(server, client);
+  registerBulkTools(server, client);
+  registerStatusTools(server, client);
+  registerOrganizationTools(server, client);
+  registerUserTools(server, client);
+  registerResources(server, client);
+  registerPrompts(server);
 
-async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
 
-main().catch((error) => {
+main().catch((error: unknown) => {
   console.error("Fatal error:", error);
   process.exit(1);
 });
