@@ -239,4 +239,167 @@ export function registerJobTools(
       }
     },
   );
+
+  server.tool(
+    "cortex_delete_job",
+    "Delete a specific analysis job by ID",
+    {
+      jobId: z.string().describe("The job ID to delete"),
+    },
+    async ({ jobId }) => {
+      try {
+        await client.deleteJob(jobId);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Job "${jobId}" deleted successfully.`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error deleting job: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "cortex_cleanup_jobs",
+    "Delete multiple jobs by status or age. Useful for cleaning up failed or old jobs.",
+    {
+      status: z
+        .enum(["Failure", "Deleted", "Success", "Waiting", "InProgress"])
+        .optional()
+        .describe("Delete jobs with this status"),
+      olderThanDays: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe("Delete jobs older than this many days"),
+      dryRun: z
+        .boolean()
+        .default(true)
+        .describe("If true (default), only count matching jobs without deleting them"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(500)
+        .default(100)
+        .describe("Maximum jobs to process (default: 100)"),
+    },
+    async ({ status, olderThanDays, dryRun, limit }) => {
+      try {
+        if (!status && !olderThanDays) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Please specify at least one filter: status or olderThanDays.",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const must: Record<string, unknown>[] = [];
+        if (status) {
+          must.push({ _field: "status", _value: status });
+        }
+
+        const query: Record<string, unknown> =
+          must.length > 0
+            ? must.length === 1 ? must[0] : { _and: must }
+            : { _field: "status", _value: "*" };
+
+        const jobs = await client.searchJobs({
+          query,
+          range: `0-${limit}`,
+          sort: ["-createdAt"],
+        });
+
+        let matchingJobs = jobs;
+        if (olderThanDays) {
+          const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
+          matchingJobs = jobs.filter(
+            (j) => (j.createdAt ?? 0) < cutoff,
+          );
+        }
+
+        if (dryRun) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify(
+                  {
+                    dryRun: true,
+                    matchingJobs: matchingJobs.length,
+                    message: `Found ${matchingJobs.length} jobs matching criteria. Set dryRun=false to delete them.`,
+                    jobs: matchingJobs.map((j) => ({
+                      id: j.id,
+                      status: j.status,
+                      analyzer: j.analyzerName,
+                      data: j.data,
+                      createdAt: j.createdAt
+                        ? new Date(j.createdAt).toISOString()
+                        : undefined,
+                    })),
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+
+        // Actually delete
+        const results = await Promise.allSettled(
+          matchingJobs.map((j) => client.deleteJob(j.id)),
+        );
+
+        const deleted = results.filter((r) => r.status === "fulfilled").length;
+        const failed = results.filter((r) => r.status === "rejected").length;
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  dryRun: false,
+                  deleted,
+                  failed,
+                  total: matchingJobs.length,
+                  message: `Deleted ${deleted}/${matchingJobs.length} jobs.${failed > 0 ? ` ${failed} deletions failed.` : ""}`,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error cleaning up jobs: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
 }

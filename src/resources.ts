@@ -34,6 +34,82 @@ export function registerResources(
   );
 
   server.resource(
+    "analyzer-definitions",
+    "cortex://analyzer-definitions",
+    {
+      description:
+        "All available Cortex analyzer definitions (installed, not necessarily enabled) with config requirements",
+      mimeType: "application/json",
+    },
+    async () => {
+      const defs = await client.listAnalyzerDefinitions();
+      const summary = defs.map((d) => ({
+        id: d.id,
+        name: d.name,
+        version: d.version,
+        description: d.description,
+        dataTypes: d.dataTypeList,
+        author: d.author,
+        requiresConfig: d.configurationItems.some((c) => c.required),
+        requiredFields: d.configurationItems
+          .filter((c) => c.required)
+          .map((c) => c.name),
+      }));
+      return {
+        contents: [
+          {
+            uri: "cortex://analyzer-definitions",
+            mimeType: "application/json",
+            text: JSON.stringify(
+              { total: summary.length, definitions: summary },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+
+  server.resource(
+    "responder-definitions",
+    "cortex://responder-definitions",
+    {
+      description:
+        "All available Cortex responder definitions with config requirements",
+      mimeType: "application/json",
+    },
+    async () => {
+      const defs = await client.listResponderDefinitions();
+      const summary = defs.map((d) => ({
+        id: d.id,
+        name: d.name,
+        version: d.version,
+        description: d.description,
+        dataTypes: d.dataTypeList,
+        author: d.author,
+        requiresConfig: d.configurationItems.some((c) => c.required),
+        requiredFields: d.configurationItems
+          .filter((c) => c.required)
+          .map((c) => c.name),
+      }));
+      return {
+        contents: [
+          {
+            uri: "cortex://responder-definitions",
+            mimeType: "application/json",
+            text: JSON.stringify(
+              { total: summary.length, definitions: summary },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+
+  server.resource(
     "recent-jobs",
     "cortex://jobs/recent",
     {

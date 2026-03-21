@@ -492,7 +492,7 @@ describe("Bulk Tools", () => {
         timeout: 60,
       });
 
-      expect(result.content[0].text).toContain("No analyzers found");
+      expect(result.content[0].text).toContain("No enabled analyzers support data type");
     });
 
     it("should handle partial failures gracefully", async () => {

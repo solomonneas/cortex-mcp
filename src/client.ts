@@ -1,14 +1,17 @@
 import type { CortexConfig } from "./config.js";
 import type {
   Analyzer,
+  AnalyzerDefinition,
   Artifact,
   Job,
   JobReport,
   JobSearchQuery,
   Responder,
+  ResponderDefinition,
   ActionJob,
   RunAnalyzerRequest,
   RunResponderRequest,
+  EnableWorkerRequest,
   CortexStatus,
   Organization,
   CortexUser,
@@ -66,7 +69,10 @@ export class CortexClient {
         throw new Error(`Cortex API error: ${msg}${body ? ` - ${body}` : ""}`);
       }
 
-      return response.json() as Promise<T>;
+      // Some DELETE endpoints return empty body
+      const text = await response.text();
+      if (!text) return undefined as T;
+      return JSON.parse(text) as T;
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         throw new Error(`Cortex API timeout after ${this.timeout}ms`);
@@ -77,7 +83,56 @@ export class CortexClient {
     }
   }
 
-  // Analyzer methods
+  // Raw text request for endpoints that return plain text (e.g. key renewal)
+  private async requestText(
+    path: string,
+    options: RequestInit = {},
+    useSuperadmin = false,
+  ): Promise<string> {
+    const url = `${this.baseUrl}${path}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const authKey = useSuperadmin
+      ? (this.config.superadminKey ?? this.config.apiKey)
+      : this.config.apiKey;
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${authKey}`,
+    };
+    if (options.body) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: { ...headers, ...(options.headers as Record<string, string>) },
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        throw new Error(`Cortex API error: HTTP ${response.status}${body ? ` - ${body}` : ""}`);
+      }
+
+      return response.text();
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error(`Cortex API timeout after ${this.timeout}ms`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  // ── Status ──
+
+  async getStatus(): Promise<CortexStatus> {
+    return this.request<CortexStatus>("/status");
+  }
+
+  // ── Analyzer methods ──
 
   async listAnalyzers(): Promise<Analyzer[]> {
     return this.request<Analyzer[]>("/analyzer");
@@ -85,6 +140,13 @@ export class CortexClient {
 
   async getAnalyzer(analyzerId: string): Promise<Analyzer> {
     return this.request<Analyzer>(`/analyzer/${encodeURIComponent(analyzerId)}`);
+  }
+
+  async deleteAnalyzer(analyzerId: string): Promise<void> {
+    await this.request<void>(
+      `/analyzer/${encodeURIComponent(analyzerId)}`,
+      { method: "DELETE" },
+    );
   }
 
   async runAnalyzer(
@@ -100,7 +162,65 @@ export class CortexClient {
     );
   }
 
-  // Job methods
+  // ── Analyzer Definition methods ──
+
+  async listAnalyzerDefinitions(): Promise<AnalyzerDefinition[]> {
+    return this.request<AnalyzerDefinition[]>("/analyzerdefinition", {}, true);
+  }
+
+  async getAnalyzerDefinition(defId: string): Promise<AnalyzerDefinition> {
+    return this.request<AnalyzerDefinition>(
+      `/analyzerdefinition/${encodeURIComponent(defId)}`,
+      {},
+      true,
+    );
+  }
+
+  async enableAnalyzer(data: EnableWorkerRequest): Promise<Analyzer> {
+    return this.request<Analyzer>(
+      `/organization/analyzer/${encodeURIComponent(data.name)}`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: data.name,
+          configuration: data.configuration,
+          rate: data.rate ?? 100,
+          rateUnit: data.rateUnit ?? "Day",
+          jobCache: data.jobCache ?? 10,
+        }),
+      },
+    );
+  }
+
+  // ── Responder Definition methods ──
+
+  async listResponderDefinitions(): Promise<ResponderDefinition[]> {
+    return this.request<ResponderDefinition[]>("/responderdefinition", {}, true);
+  }
+
+  async enableResponder(data: EnableWorkerRequest): Promise<Responder> {
+    return this.request<Responder>(
+      `/organization/responder/${encodeURIComponent(data.name)}`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: data.name,
+          configuration: data.configuration,
+          rate: data.rate ?? 100,
+          rateUnit: data.rateUnit ?? "Day",
+        }),
+      },
+    );
+  }
+
+  async deleteResponder(responderId: string): Promise<void> {
+    await this.request<void>(
+      `/responder/${encodeURIComponent(responderId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  // ── Job methods ──
 
   async getJob(jobId: string): Promise<Job> {
     return this.request<Job>(`/job/${encodeURIComponent(jobId)}`);
@@ -134,7 +254,14 @@ export class CortexClient {
     );
   }
 
-  // Responder methods
+  async deleteJob(jobId: string): Promise<void> {
+    await this.request<void>(
+      `/job/${encodeURIComponent(jobId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  // ── Responder methods ──
 
   async listResponders(): Promise<Responder[]> {
     return this.request<Responder[]>("/responder");
@@ -153,13 +280,7 @@ export class CortexClient {
     );
   }
 
-  // Status methods
-
-  async getStatus(): Promise<CortexStatus> {
-    return this.request<CortexStatus>("/status");
-  }
-
-  // Organization methods (superadmin)
+  // ── Organization methods (superadmin) ──
 
   get superadminAvailable(): boolean {
     return !!this.config.superadminKey;
@@ -196,7 +317,21 @@ export class CortexClient {
     );
   }
 
-  // User methods (superadmin for cross-org, org admin for own org)
+  async updateOrganization(
+    orgId: string,
+    data: { description?: string; status?: string },
+  ): Promise<Organization> {
+    return this.request<Organization>(
+      `/organization/${encodeURIComponent(orgId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      },
+      true,
+    );
+  }
+
+  // ── User methods (superadmin for cross-org, org admin for own org) ──
 
   async listUsers(): Promise<CortexUser[]> {
     return this.request<CortexUser[]>("/user", {}, true);
@@ -223,6 +358,22 @@ export class CortexClient {
         method: "POST",
         body: JSON.stringify(data),
       },
+      true,
+    );
+  }
+
+  async renewUserKey(userId: string): Promise<string> {
+    return this.requestText(
+      `/user/${encodeURIComponent(userId)}/key/renew`,
+      { method: "POST" },
+      true,
+    );
+  }
+
+  async getUserKey(userId: string): Promise<string> {
+    return this.requestText(
+      `/user/${encodeURIComponent(userId)}/key`,
+      {},
       true,
     );
   }

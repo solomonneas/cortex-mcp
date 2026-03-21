@@ -168,4 +168,106 @@ export function registerUserTools(
       }
     },
   );
+
+  server.tool(
+    "cortex_renew_user_key",
+    "Generate a new API key for a user (invalidates the previous key). Requires superadmin API key.",
+    {
+      userId: z.string().describe("The user login/ID to renew the key for"),
+    },
+    async ({ userId }) => {
+      try {
+        if (!client.superadminAvailable) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "User key management requires CORTEX_SUPERADMIN_KEY environment variable to be set.",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const newKey = await client.renewUserKey(userId);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  userId,
+                  apiKey: newKey,
+                  message: `New API key generated for user "${userId}". The previous key is now invalid.`,
+                  warning: "Store this key securely. It will not be shown again.",
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error renewing user key: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "cortex_get_user_key",
+    "Get the current API key for a user. Requires superadmin API key.",
+    {
+      userId: z.string().describe("The user login/ID"),
+    },
+    async ({ userId }) => {
+      try {
+        if (!client.superadminAvailable) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "User key management requires CORTEX_SUPERADMIN_KEY environment variable to be set.",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const key = await client.getUserKey(userId);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  userId,
+                  apiKey: key,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error getting user key: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
 }

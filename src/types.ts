@@ -13,6 +13,51 @@ export interface Analyzer {
   createdAt?: number;
   updatedBy?: string;
   updatedAt?: number;
+  workerDefinitionId?: string;
+  configuration?: Record<string, unknown>;
+  baseConfig?: string;
+  dockerImage?: string;
+  jobCache?: number;
+  type?: string;
+}
+
+export interface AnalyzerDefinition {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  dataTypeList: string[];
+  author: string;
+  url: string;
+  license: string;
+  baseConfig: string;
+  configurationItems: ConfigurationItem[];
+  dockerImage: string | null;
+  command: string | null;
+}
+
+export interface ConfigurationItem {
+  name: string;
+  description: string;
+  type: string;
+  multi: boolean;
+  required: boolean;
+  defaultValue?: unknown;
+}
+
+export interface ResponderDefinition {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  dataTypeList: string[];
+  author: string;
+  url: string;
+  license: string;
+  baseConfig: string;
+  configurationItems: ConfigurationItem[];
+  dockerImage: string | null;
+  command: string | null;
 }
 
 export interface Job {
@@ -73,6 +118,10 @@ export interface Responder {
   maxTlp?: number;
   maxPap?: number;
   cortexIds?: string[];
+  workerDefinitionId?: string;
+  configuration?: Record<string, unknown>;
+  baseConfig?: string;
+  dockerImage?: string;
 }
 
 export interface ActionJob {
@@ -151,4 +200,12 @@ export interface CortexUser {
   updatedAt?: number;
   updatedBy?: string;
   _type?: string;
+}
+
+export interface EnableWorkerRequest {
+  name: string;
+  configuration: Record<string, unknown>;
+  rate?: number;
+  rateUnit?: string;
+  jobCache?: number;
 }

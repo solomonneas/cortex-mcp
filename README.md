@@ -5,17 +5,20 @@
 [![MCP](https://img.shields.io/badge/MCP-1.x-purple)](https://modelcontextprotocol.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-An MCP (Model Context Protocol) server for [Cortex](https://docs.strangebee.com/cortex/) by StrangeBee/TheHive Project. Cortex automates observable analysis (IPs, URLs, hashes, domains, emails, files) using analyzers and executes response actions via responders. This MCP server exposes Cortex's full analysis pipeline to LLMs for AI-driven observable enrichment and automated response.
+An MCP (Model Context Protocol) server for [Cortex](https://docs.strangebee.com/cortex/) by StrangeBee/TheHive Project. Cortex automates observable analysis (IPs, URLs, hashes, domains, emails, files) using analyzers and executes response actions via responders. This MCP server exposes Cortex's full analysis and administration pipeline to LLMs.
 
 ## Features
 
-- **18 MCP tools** covering analyzers, jobs, responders, bulk operations, status, organizations, and users
-- **2 MCP resources** for browsing Cortex state
+- **30 MCP tools** covering the complete Cortex API surface
+- **4 MCP resources** for browsing Cortex state
 - **2 MCP prompts** with guided investigation workflows
-- Full TLP/PAP support for data classification
-- Dual API key support: org-level operations + superadmin administration
+- Full analyzer/responder lifecycle: browse definitions, enable, configure, disable
+- Auto-detection of observable data types (IP, domain, hash, URL, email)
 - Bulk analysis across all applicable analyzers with taxonomy aggregation
-- Structured error handling with meaningful messages
+- Job cleanup with dry-run support
+- User API key management (create, renew, retrieve)
+- Organization CRUD with status management
+- Dual API key support: org-level operations + superadmin administration
 
 ## Prerequisites
 
@@ -34,29 +37,17 @@ npm run build
 
 ## Configuration
 
-Set these environment variables before running the server:
-
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `CORTEX_URL` | Yes | - | Cortex base URL (e.g., `http://cortex.example.com:9001`) |
 | `CORTEX_API_KEY` | Yes | - | API key for normal operations (org admin level) |
-| `CORTEX_SUPERADMIN_KEY` | No | - | Superadmin API key for org/user management |
+| `CORTEX_SUPERADMIN_KEY` | No | - | Superadmin API key for org/user/definition management |
 | `CORTEX_VERIFY_SSL` | No | `true` | Set to `false` to skip SSL verification |
 | `CORTEX_TIMEOUT` | No | `30` | Request timeout in seconds |
-
-Example `.env` file:
-```env
-CORTEX_URL=http://cortex.example.com:9001
-CORTEX_API_KEY=your-org-admin-key
-CORTEX_SUPERADMIN_KEY=your-superadmin-key
-CORTEX_VERIFY_SSL=false
-```
 
 ## Usage
 
 ### With Claude Desktop
-
-Add to your Claude Desktop MCP configuration (`claude_desktop_config.json`):
 
 ```json
 {
@@ -82,15 +73,7 @@ export CORTEX_API_KEY=your-org-admin-key
 npm start
 ```
 
-### Development
-
-```bash
-export CORTEX_URL=http://cortex.example.com:9001
-export CORTEX_API_KEY=your-org-admin-key
-npm run dev
-```
-
-## MCP Tools
+## MCP Tools (30)
 
 ### Status
 
@@ -107,6 +90,14 @@ npm run dev
 | `cortex_run_analyzer` | Submit an observable to a specific analyzer for analysis |
 | `cortex_run_analyzer_by_name` | Run an analyzer by name instead of ID (convenience wrapper) |
 
+### Analyzer Definition Tools
+
+| Tool | Description |
+|------|-------------|
+| `cortex_list_analyzer_definitions` | Browse all 260+ available analyzer definitions with filtering (by data type, free/no-config, search) |
+| `cortex_enable_analyzer` | Enable an analyzer definition in the current org with configuration |
+| `cortex_disable_analyzer` | Disable (remove) an enabled analyzer |
+
 ### Job Tools
 
 | Tool | Description |
@@ -116,6 +107,8 @@ npm run dev
 | `cortex_wait_and_get_report` | Wait for a job to complete and return the report |
 | `cortex_list_jobs` | List recent analysis jobs with optional filters |
 | `cortex_get_job_artifacts` | Get artifacts (extracted IOCs) from a completed job |
+| `cortex_delete_job` | Delete a specific job |
+| `cortex_cleanup_jobs` | Bulk delete jobs by status or age (with dry-run) |
 
 ### Responder Tools
 
@@ -124,36 +117,49 @@ npm run dev
 | `cortex_list_responders` | List all enabled responders, optionally filtered by data type |
 | `cortex_run_responder` | Execute a responder action against a TheHive entity |
 
+### Responder Definition Tools
+
+| Tool | Description |
+|------|-------------|
+| `cortex_list_responder_definitions` | Browse all 137+ available responder definitions with filtering |
+| `cortex_enable_responder` | Enable a responder definition with configuration |
+| `cortex_disable_responder` | Disable (remove) an enabled responder |
+
 ### Bulk Operations
 
 | Tool | Description |
 |------|-------------|
-| `cortex_analyze_observable` | Run ALL applicable analyzers and return aggregated results with taxonomy summary |
+| `cortex_analyze_observable` | Run ALL applicable analyzers with auto-detected data type and aggregated taxonomy results |
 
 ### Organization Management (superadmin)
 
 | Tool | Description |
 |------|-------------|
 | `cortex_list_organizations` | List all organizations |
-| `cortex_get_organization` | Get details about a specific organization |
+| `cortex_get_organization` | Get organization details |
 | `cortex_create_organization` | Create a new organization |
+| `cortex_update_organization` | Update organization description or status |
 
 ### User Management (superadmin)
 
 | Tool | Description |
 |------|-------------|
 | `cortex_list_users` | List all users across organizations |
-| `cortex_get_user` | Get details about a specific user |
+| `cortex_get_user` | Get user details |
 | `cortex_create_user` | Create a new user in an organization |
+| `cortex_renew_user_key` | Generate a new API key for a user (invalidates previous) |
+| `cortex_get_user_key` | Retrieve a user's current API key |
 
-## MCP Resources
+## MCP Resources (4)
 
 | URI | Description |
 |-----|-------------|
-| `cortex://analyzers` | List of all enabled analyzers with capabilities |
+| `cortex://analyzers` | Enabled analyzers with capabilities |
+| `cortex://analyzer-definitions` | All 260+ available analyzer definitions with config requirements |
+| `cortex://responder-definitions` | All 137+ available responder definitions with config requirements |
 | `cortex://jobs/recent` | Last 50 analysis jobs |
 
-## MCP Prompts
+## MCP Prompts (2)
 
 | Prompt | Description |
 |--------|-------------|
@@ -162,69 +168,49 @@ npm run dev
 
 ## Examples
 
-### Check Cortex health
+### Set up analyzers from scratch
 
 ```
-Use cortex_get_status to check if Cortex is running.
+1. Use cortex_list_analyzer_definitions with freeOnly=true to find analyzers
+   that need no API keys.
+2. Use cortex_enable_analyzer to enable "Abuse_Finder_3_0" with empty config.
+3. Use cortex_analyze_observable with data "8.8.8.8" to analyze the IP.
 ```
 
-### Analyze an IP address
+### Auto-detect observable type
 
 ```
-Use cortex_analyze_observable to check the IP 185.220.101.42
-with dataType "ip", tlp 2, pap 2.
+Use cortex_analyze_observable with data "185.220.101.42"
+(no dataType needed - auto-detects as IP)
 ```
 
-The server will submit the IP to all analyzers that support the `ip` data type, wait for results, and return an aggregated report with taxonomy counts:
-
-```json
-{
-  "observable": { "dataType": "ip", "data": "185.220.101.42" },
-  "analyzersRun": 4,
-  "summary": {
-    "malicious": 2,
-    "suspicious": 1,
-    "info": 1,
-    "safe": 0
-  },
-  "results": [...]
-}
-```
-
-### Run a specific analyzer
+### Clean up old failed jobs
 
 ```
-Use cortex_run_analyzer_by_name with analyzerName "VirusTotal",
-dataType "hash", data "44d88612fea8a8f36de82e1278abb02f"
+Use cortex_cleanup_jobs with status "Failure", dryRun true to preview,
+then dryRun false to delete.
 ```
 
-### List organizations (superadmin)
+### Manage API keys
 
 ```
-Use cortex_list_organizations to see all Cortex organizations.
-```
-
-### Create a user (superadmin)
-
-```
-Use cortex_create_user with login "analyst1", name "Jane Doe",
-organization "SOC", roles ["read", "analyze"]
+Use cortex_renew_user_key with userId "analyst1" to rotate their API key.
 ```
 
 ## Supported Data Types
 
-| Type | Examples |
-|------|----------|
-| `ip` | `8.8.8.8`, `2001:db8::1` |
-| `domain` | `example.com` |
-| `url` | `https://malware.example.com/payload` |
-| `fqdn` | `mail.example.com` |
-| `hash` | MD5, SHA1, SHA256 hashes |
-| `mail` | `user@example.com` |
-| `filename` | `malware.exe` |
-| `registry` | `HKLM\Software\Malware` |
-| `regexp` | Regular expression patterns |
-| `other` | Any other observable type |
+| Type | Examples | Auto-detected |
+|------|----------|---------------|
+| `ip` | `8.8.8.8`, `2001:db8::1` | ✅ |
+| `domain` | `example.com` | ✅ |
+| `url` | `https://malware.example.com/payload` | ✅ |
+| `hash` | MD5, SHA1, SHA256, SHA512 | ✅ |
+| `mail` | `user@example.com` | ✅ |
+| `fqdn` | `mail.example.com` | As domain |
+| `filename` | `malware.exe` | Manual |
+| `registry` | `HKLM\Software\Malware` | Manual |
+| `file` | Binary file uploads | Manual |
+| `other` | CVEs, custom types | Manual |
 
 ## Testing
 
@@ -245,37 +231,33 @@ npx vitest run tests/integration.test.ts
 ```
 cortex-mcp/
   src/
-    index.ts              # MCP server entry point
-    config.ts             # Environment config + validation
-    client.ts             # Cortex REST API client
-    types.ts              # Cortex API type definitions
-    resources.ts          # MCP resources
-    prompts.ts            # MCP prompts
+    index.ts                  # MCP server entry point
+    config.ts                 # Environment config + validation
+    client.ts                 # Cortex REST API client (full surface)
+    types.ts                  # Cortex API type definitions
+    resources.ts              # MCP resources (4)
+    prompts.ts                # MCP prompts (2)
     tools/
-      analyzers.ts        # Analyzer tools
-      jobs.ts             # Job management tools
-      responders.ts       # Responder tools
-      bulk.ts             # Bulk operations
-      status.ts           # Health/version check
-      organizations.ts    # Org management (superadmin)
-      users.ts            # User management (superadmin)
+      analyzers.ts            # Analyzer tools (list, get, run, run-by-name)
+      analyzer-definitions.ts # Definition browsing, enable, disable
+      jobs.ts                 # Job management + cleanup
+      responders.ts           # Responder tools (list, run)
+      responder-definitions.ts # Definition browsing, enable, disable
+      bulk.ts                 # Bulk analysis with auto-detect
+      status.ts               # Health/version check
+      organizations.ts        # Org CRUD (superadmin)
+      users.ts                # User CRUD + key management (superadmin)
   tests/
-    client.test.ts        # API client unit tests
-    tools.test.ts         # Tool handler unit tests
-    integration.test.ts   # Live instance integration tests
+    client.test.ts            # API client unit tests
+    tools.test.ts             # Tool handler unit tests
+    integration.test.ts       # Live instance integration tests (21 tests)
   scripts/
-    proxmox_install.sh    # Proxmox LXC deployment script
-  package.json
-  tsconfig.json
-  tsup.config.ts
-  vitest.config.ts
+    proxmox_install.sh        # Proxmox LXC deployment script
 ```
 
 ## Deployment
 
 ### Proxmox LXC
-
-A one-click installer is included for Proxmox VE environments:
 
 ```bash
 bash -c "$(wget -qLO - https://raw.githubusercontent.com/solomonneas/cortex-mcp/main/scripts/proxmox_install.sh)"
