@@ -65,6 +65,28 @@ npm run build
 }
 ```
 
+### OpenClaw
+
+Add to your `openclaw.json`:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "cortex": {
+        "type": "stdio",
+        "command": "node",
+        "args": ["/path/to/cortex-mcp/dist/index.js"],
+        "env": {
+          "CORTEX_URL": "http://your-cortex:9001",
+          "CORTEX_API_KEY": "your-api-key"
+        }
+      }
+    }
+  }
+}
+```
+
 ### Standalone
 
 ```bash
