@@ -23,7 +23,7 @@ async function main(): Promise<void> {
 
   const server = new McpServer({
     name: "cortex-mcp",
-    version: "1.1.0",
+    version: "1.2.0",
     description:
       "MCP server for Cortex - observable analysis and active response engine by StrangeBee/TheHive Project",
   });

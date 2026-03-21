@@ -162,6 +162,63 @@ export class CortexClient {
     );
   }
 
+  async runAnalyzerWithFile(
+    analyzerId: string,
+    file: {
+      content: Buffer;
+      filename: string;
+      contentType: string;
+    },
+    options: {
+      tlp: number;
+      pap: number;
+      message?: string;
+    },
+  ): Promise<Job> {
+    const url = `${this.baseUrl}/analyzer/${encodeURIComponent(analyzerId)}/run`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const formData = new FormData();
+
+      // Cortex expects _json field with metadata and attachment field with file
+      const jsonData = JSON.stringify({
+        dataType: "file",
+        tlp: options.tlp,
+        pap: options.pap,
+        message: options.message ?? "",
+      });
+      formData.append("_json", new Blob([jsonData], { type: "application/json" }));
+
+      const fileBlob = new Blob([file.content], { type: file.contentType });
+      formData.append("attachment", fileBlob, file.filename);
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.config.apiKey}`,
+        },
+        body: formData,
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        throw new Error(`Cortex API error: HTTP ${response.status}${body ? ` - ${body}` : ""}`);
+      }
+
+      return response.json() as Promise<Job>;
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error(`Cortex API timeout after ${this.timeout}ms`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
   // ── Analyzer Definition methods ──
 
   async listAnalyzerDefinitions(): Promise<AnalyzerDefinition[]> {

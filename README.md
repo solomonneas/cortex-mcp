@@ -9,9 +9,9 @@ An MCP (Model Context Protocol) server for [Cortex](https://docs.strangebee.com/
 
 ## Features
 
-- **30 MCP tools** covering the complete Cortex API surface
+- **31 MCP tools** covering the complete Cortex API surface
 - **4 MCP resources** for browsing Cortex state
-- **2 MCP prompts** with guided investigation workflows
+- **4 MCP prompts** with guided workflows (setup, investigation, triage)
 - Full analyzer/responder lifecycle: browse definitions, enable, configure, disable
 - Auto-detection of observable data types (IP, domain, hash, URL, email)
 - Bulk analysis across all applicable analyzers with taxonomy aggregation
@@ -73,7 +73,7 @@ export CORTEX_API_KEY=your-org-admin-key
 npm start
 ```
 
-## MCP Tools (30)
+## MCP Tools (31)
 
 ### Status
 
@@ -89,6 +89,7 @@ npm start
 | `cortex_get_analyzer` | Get details about a specific analyzer by ID |
 | `cortex_run_analyzer` | Submit an observable to a specific analyzer for analysis |
 | `cortex_run_analyzer_by_name` | Run an analyzer by name instead of ID (convenience wrapper) |
+| `cortex_run_analyzer_file` | Submit a file (from path or base64) to an analyzer for analysis |
 
 ### Analyzer Definition Tools
 
@@ -159,12 +160,14 @@ npm start
 | `cortex://responder-definitions` | All 137+ available responder definitions with config requirements |
 | `cortex://jobs/recent` | Last 50 analysis jobs |
 
-## MCP Prompts (2)
+## MCP Prompts (4)
 
 | Prompt | Description |
 |--------|-------------|
 | `analyze-observable` | Guided workflow for analyzing an observable through Cortex |
 | `investigate-ioc` | Deep investigation workflow for a suspicious IOC |
+| `setup-cortex` | Guided setup wizard for fresh Cortex instances (enable free analyzers, configure API keys) |
+| `triage-alert` | Structured alert triage workflow with multi-observable analysis and risk assessment |
 
 ## Examples
 
@@ -191,10 +194,24 @@ Use cortex_cleanup_jobs with status "Failure", dryRun true to preview,
 then dryRun false to delete.
 ```
 
+### Analyze a file
+
+```
+Use cortex_run_analyzer_file with analyzerId "Yara_3_0",
+filePath "/tmp/suspicious.exe" to scan with YARA rules.
+```
+
 ### Manage API keys
 
 ```
 Use cortex_renew_user_key with userId "analyst1" to rotate their API key.
+```
+
+### Triage a security alert
+
+```
+Use the triage-alert prompt with alertDescription "Suspicious outbound traffic
+detected" and observables "185.220.101.42, evil.example.com, 44d88612fea8a8f36de82e1278abb02f"
 ```
 
 ## Supported Data Types

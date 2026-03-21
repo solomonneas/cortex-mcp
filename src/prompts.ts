@@ -89,4 +89,114 @@ Investigation steps:
       };
     },
   );
+
+  server.prompt(
+    "setup-cortex",
+    "Guided workflow to set up a fresh Cortex instance with analyzers and responders",
+    {
+      focus: z
+        .string()
+        .optional()
+        .describe("Focus area: 'all' (default), 'free-only' (no API keys), 'ip', 'domain', 'hash', 'file', 'mail'"),
+    },
+    ({ focus }) => {
+      const focusArea = focus ?? "all";
+      const freeFilter = focusArea === "free-only" ? " with freeOnly=true" : "";
+      const dtFilter = ["ip", "domain", "hash", "file", "mail"].includes(focusArea)
+        ? ` with dataType="${focusArea}"`
+        : "";
+
+      return {
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: `Set up this Cortex instance with analyzers and responders.
+Focus: ${focusArea}
+
+Steps:
+1. Use cortex_get_status to verify the instance is healthy
+2. Use cortex_list_analyzers to check what's already enabled
+3. Use cortex_list_analyzer_definitions${freeFilter}${dtFilter} to find available analyzers
+4. For analyzers that require NO configuration (freeOnly=true):
+   - Enable them with cortex_enable_analyzer using empty configuration {}
+   - These are safe to enable immediately
+5. For analyzers that need API keys:
+   - List their required configurationItems
+   - Ask the user which API keys they have available
+   - Enable those analyzers with the provided keys
+6. Use cortex_list_responder_definitions to find available responders
+7. Enable any useful responders
+8. Verify the setup:
+   - Use cortex_list_analyzers to show all enabled analyzers
+   - Group them by data type coverage
+   - Identify any gaps in coverage
+9. Suggest a test: run cortex_analyze_observable on a known-safe IP like 8.8.8.8
+
+Provide a summary table of:
+- Analyzers enabled (grouped by data type)
+- Data types with coverage vs gaps
+- Responders enabled
+- Suggested next steps (API keys to add for better coverage)`,
+            },
+          },
+        ],
+      };
+    },
+  );
+
+  server.prompt(
+    "triage-alert",
+    "Guided workflow for triaging a security alert using Cortex analysis",
+    {
+      alertDescription: z
+        .string()
+        .describe("Description of the alert or incident"),
+      observables: z
+        .string()
+        .describe("Comma-separated list of observables (IPs, domains, hashes, URLs) from the alert"),
+    },
+    ({ alertDescription, observables }) => {
+      const observableList = observables
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean);
+
+      return {
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: `Triage the following security alert using Cortex:
+
+Alert: ${alertDescription}
+Observables: ${observableList.join(", ")}
+
+Triage workflow:
+1. For each observable (${observableList.length} total):
+   a. Use cortex_analyze_observable to run all applicable analyzers
+   b. Note the data type (auto-detected) and results
+2. Cross-correlate findings:
+   - Which observables are flagged as malicious?
+   - Are there connections between the observables (same campaign, same threat actor)?
+   - Check job artifacts for additional IOCs not in the original alert
+3. Risk assessment:
+   - Overall severity: Critical / High / Medium / Low / Informational
+   - Confidence level based on analyzer consensus
+   - False positive likelihood
+4. Recommended actions:
+   - Immediate containment steps
+   - Which responders to execute (use cortex_list_responders)
+   - Additional observables to investigate
+   - Escalation recommendation
+
+Present findings in a structured triage report format.`,
+            },
+          },
+        ],
+      };
+    },
+  );
 }
