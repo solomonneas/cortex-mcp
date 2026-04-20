@@ -47,14 +47,15 @@ npm run build
 
 ## Usage
 
-### With Claude Desktop
+### Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
 ```json
 {
   "mcpServers": {
     "cortex": {
-      "command": "node",
-      "args": ["/path/to/cortex-mcp/dist/index.js"],
+      "command": "cortex-mcp",
       "env": {
         "CORTEX_URL": "http://cortex.example.com:9001",
         "CORTEX_API_KEY": "your-org-admin-key",
@@ -65,26 +66,113 @@ npm run build
 }
 ```
 
+### Claude Code
+
+```bash
+claude mcp add cortex \
+  --env CORTEX_URL=http://cortex.example.com:9001 \
+  --env CORTEX_API_KEY=your-org-admin-key \
+  --env CORTEX_SUPERADMIN_KEY=your-superadmin-key \
+  -- cortex-mcp
+```
+
+Add `--scope user` to make it available from any directory instead of only the current project.
+
 ### OpenClaw
 
-Add to your `openclaw.json`:
+If you're running from a source checkout instead of the npm-installed binary, point `command`/`args` at the built `dist/index.js`:
 
-```json
-{
-  "mcp": {
-    "servers": {
-      "cortex": {
-        "type": "stdio",
-        "command": "node",
-        "args": ["/path/to/cortex-mcp/dist/index.js"],
-        "env": {
-          "CORTEX_URL": "http://your-cortex:9001",
-          "CORTEX_API_KEY": "your-api-key"
-        }
-      }
-    }
+```bash
+openclaw mcp set cortex '{
+  "command": "node",
+  "args": ["/absolute/path/to/cortex-mcp/dist/index.js"],
+  "env": {
+    "CORTEX_URL": "http://cortex.example.com:9001",
+    "CORTEX_API_KEY": "your-org-admin-key",
+    "CORTEX_SUPERADMIN_KEY": "your-superadmin-key"
   }
-}
+}'
+```
+
+Or, with the global npm install:
+
+```bash
+openclaw mcp set cortex '{
+  "command": "cortex-mcp",
+  "env": {
+    "CORTEX_URL": "http://cortex.example.com:9001",
+    "CORTEX_API_KEY": "your-org-admin-key",
+    "CORTEX_SUPERADMIN_KEY": "your-superadmin-key"
+  }
+}'
+```
+
+Then restart the OpenClaw gateway so the new server is picked up:
+
+```bash
+systemctl --user restart openclaw-gateway
+openclaw mcp list   # confirm "cortex" is registered
+```
+
+### Hermes Agent
+
+[Hermes Agent](https://github.com/NousResearch/hermes-agent) reads MCP config from `~/.hermes/config.yaml` under the `mcp_servers` key. Add an entry:
+
+```yaml
+mcp_servers:
+  cortex:
+    command: "cortex-mcp"
+    env:
+      CORTEX_URL: "http://cortex.example.com:9001"
+      CORTEX_API_KEY: "your-org-admin-key"
+      CORTEX_SUPERADMIN_KEY: "your-superadmin-key"
+```
+
+Or, when running from a source checkout instead of the global npm install:
+
+```yaml
+mcp_servers:
+  cortex:
+    command: "node"
+    args: ["/absolute/path/to/cortex-mcp/dist/index.js"]
+    env:
+      CORTEX_URL: "http://cortex.example.com:9001"
+      CORTEX_API_KEY: "your-org-admin-key"
+      CORTEX_SUPERADMIN_KEY: "your-superadmin-key"
+```
+
+Then reload MCP from inside a Hermes session:
+
+```
+/reload-mcp
+```
+
+### Codex CLI
+
+[Codex CLI](https://github.com/openai/codex) registers MCP servers via `codex mcp add`:
+
+```bash
+codex mcp add cortex \
+  --env CORTEX_URL=http://cortex.example.com:9001 \
+  --env CORTEX_API_KEY=your-org-admin-key \
+  --env CORTEX_SUPERADMIN_KEY=your-superadmin-key \
+  -- cortex-mcp
+```
+
+Or, when running from a source checkout:
+
+```bash
+codex mcp add cortex \
+  --env CORTEX_URL=http://cortex.example.com:9001 \
+  --env CORTEX_API_KEY=your-org-admin-key \
+  --env CORTEX_SUPERADMIN_KEY=your-superadmin-key \
+  -- node /absolute/path/to/cortex-mcp/dist/index.js
+```
+
+Codex writes the entry to `~/.codex/config.toml` under `[mcp_servers.cortex]`. Verify with:
+
+```bash
+codex mcp list
 ```
 
 ### Standalone
