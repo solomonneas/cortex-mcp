@@ -111,7 +111,7 @@ export function registerAnalyzerDefinitionTools(
         .string()
         .describe("The analyzer definition ID (e.g., 'Abuse_Finder_3_0', 'VirusTotal_GetReport_3_1')"),
       configuration: z
-        .record(z.unknown())
+        .record(z.string(), z.unknown())
         .default({})
         .describe("Configuration key-value pairs (API keys, URLs, etc.). Check cortex_list_analyzer_definitions for required fields."),
       rate: z

@@ -111,7 +111,7 @@ export function registerResponderDefinitionTools(
         .string()
         .describe("The responder definition ID (e.g., 'Mailer_1_0')"),
       configuration: z
-        .record(z.unknown())
+        .record(z.string(), z.unknown())
         .default({})
         .describe("Configuration key-value pairs. Check cortex_list_responder_definitions for required fields."),
       rate: z

@@ -191,7 +191,8 @@ export class CortexClient {
       });
       formData.append("_json", new Blob([jsonData], { type: "application/json" }));
 
-      const fileBlob = new Blob([file.content], { type: file.contentType });
+      const fileBuffer = Uint8Array.from(file.content).buffer;
+      const fileBlob = new Blob([fileBuffer], { type: file.contentType });
       formData.append("attachment", fileBlob, file.filename);
 
       const response = await fetch(url, {

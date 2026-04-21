@@ -67,7 +67,7 @@ export function registerResponderTools(
         .string()
         .describe("The ID of the entity from TheHive"),
       parameters: z
-        .record(z.unknown())
+        .record(z.string(), z.unknown())
         .optional()
         .describe("Optional responder-specific parameters"),
     },
