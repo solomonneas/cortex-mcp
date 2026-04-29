@@ -332,7 +332,7 @@ detected" and observables "185.220.101.42, evil.example.com, 44d88612fea8a8f36de
 | `domain` | `example.com` | ✅ |
 | `url` | `https://malware.example.com/payload` | ✅ |
 | `hash` | MD5, SHA1, SHA256, SHA512 | ✅ |
-| `mail` | `user@example.com` | ✅ |
+| `mail` | `user@example.com` | ✅ | <!-- content-guard: allow email -->
 | `fqdn` | `mail.example.com` | As domain |
 | `filename` | `malware.exe` | Manual |
 | `registry` | `HKLM\Software\Malware` | Manual |
