@@ -85,6 +85,8 @@ const config: CortexConfig = {
   apiKey: "test-api-key-123",
   verifySsl: true,
   timeout: 30000,
+  allowDestructive: false,
+  maxFanout: 10,
 };
 
 describe("CortexClient", () => {

@@ -57,7 +57,7 @@ export function registerResponderTools(
 
   server.tool(
     "cortex_run_responder",
-    "Execute a responder action against a TheHive entity (case, task, artifact, alert)",
+    "Execute a responder action against a TheHive entity (case, task, artifact, alert). DESTRUCTIVE: responders perform real-world side effects (blocking IPs, sending mail, isolating hosts). Gated behind the CORTEX_ALLOW_DESTRUCTIVE env var AND confirm=true.",
     {
       responderId: z.string().describe("The responder ID to execute"),
       objectType: z
@@ -70,9 +70,39 @@ export function registerResponderTools(
         .record(z.string(), z.unknown())
         .optional()
         .describe("Optional responder-specific parameters"),
+      confirm: z
+        .boolean()
+        .default(false)
+        .describe(
+          "Must be set to true to actually run the responder. Defaults to false as a safety guard against accidental side effects.",
+        ),
     },
-    async ({ responderId, objectType, objectId, parameters }) => {
+    async ({ responderId, objectType, objectId, parameters, confirm }) => {
       try {
+        if (!client.settings.allowDestructive) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Running responders is disabled. Responders cause real-world side effects, so this is gated behind CORTEX_ALLOW_DESTRUCTIVE=1 (set it in the server environment to enable).",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        if (!confirm) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Responder NOT run. This is a destructive action (real-world side effects). Re-call with confirm=true to execute responder "${responderId}" against ${objectType} "${objectId}".`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
         const actionJob = await client.runResponder(responderId, {
           objectType,
           objectId,

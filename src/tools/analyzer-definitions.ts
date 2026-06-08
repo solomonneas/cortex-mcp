@@ -175,14 +175,31 @@ export function registerAnalyzerDefinitionTools(
 
   server.tool(
     "cortex_disable_analyzer",
-    "Disable (remove) an enabled analyzer from the current organization",
+    "Disable (remove) an enabled analyzer from the current organization. DESTRUCTIVE: requires confirm=true.",
     {
       analyzerId: z
         .string()
         .describe("The enabled analyzer's ID (the internal ID from cortex_list_analyzers, not the definition ID)"),
+      confirm: z
+        .boolean()
+        .default(false)
+        .describe(
+          "Must be set to true to actually disable/remove the analyzer. Defaults to false as a safety guard.",
+        ),
     },
-    async ({ analyzerId }) => {
+    async ({ analyzerId, confirm }) => {
       try {
+        if (!confirm) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Analyzer NOT disabled. Re-call with confirm=true to disable/remove analyzer "${analyzerId}".`,
+              },
+            ],
+            isError: true,
+          };
+        }
         await client.deleteAnalyzer(analyzerId);
         return {
           content: [

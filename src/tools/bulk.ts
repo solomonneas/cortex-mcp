@@ -50,13 +50,33 @@ export function registerBulkTools(
 ): void {
   server.tool(
     "cortex_analyze_observable",
-    "Run ALL applicable analyzers against an observable and collect aggregated results with taxonomy summary. Can auto-detect data type from the value.",
+    "Run applicable analyzers against an observable and collect aggregated results with taxonomy summary. Can auto-detect data type. By default only an explicit allowlist of analyzers runs; set fanOut=true to submit to every applicable analyzer (capped by CORTEX_MAX_FANOUT). Fanning out submits the observable to many third-party services (SSRF-by-proxy / IOC disclosure / quota burn), so it is opt-in.",
     {
       data: z.string().describe("The observable value (IP, domain, hash, URL, email, etc.)"),
       dataType: z
         .string()
         .optional()
         .describe("The observable data type. If omitted, will be auto-detected from the value."),
+      analyzers: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "Explicit allowlist of analyzer names (substring match, case-insensitive) to run. Required unless fanOut=true. Only matching analyzers that also support the data type are submitted.",
+        ),
+      fanOut: z
+        .boolean()
+        .default(false)
+        .describe(
+          "If true, submit the observable to ALL applicable analyzers (capped by maxAnalyzers / CORTEX_MAX_FANOUT). Default false: you must pass an `analyzers` allowlist.",
+        ),
+      maxAnalyzers: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe(
+          "Hard cap on how many analyzers to run this call. Defaults to and is clamped by the server's CORTEX_MAX_FANOUT (default 10).",
+        ),
       tlp: z
         .number()
         .int()
@@ -79,7 +99,7 @@ export function registerBulkTools(
         .default(300)
         .describe("Timeout in seconds per analyzer (default: 300)"),
     },
-    async ({ data, dataType: explicitType, tlp, pap, timeout }) => {
+    async ({ data, dataType: explicitType, analyzers: analyzerAllowlist, fanOut, maxAnalyzers, tlp, pap, timeout }) => {
       try {
         // Auto-detect data type if not provided
         let dataType = explicitType;
@@ -103,7 +123,7 @@ export function registerBulkTools(
 
         // Step 1: Find all analyzers that support this data type
         const allAnalyzers = await client.listAnalyzers();
-        const applicable = allAnalyzers.filter((a) =>
+        let applicable = allAnalyzers.filter((a) =>
           a.dataTypeList.includes(dataType!),
         );
 
@@ -126,9 +146,69 @@ export function registerBulkTools(
           };
         }
 
-        // Step 2: Submit observable to each analyzer
+        // Step 1b: Decide which analyzers actually run. Default (conservative)
+        // requires an explicit allowlist. Auto-fanout to every applicable
+        // analyzer must be explicitly opted into via fanOut=true, and is always
+        // capped to avoid SSRF-by-proxy / IOC disclosure / quota burn.
+        const cap = Math.max(
+          1,
+          Math.min(
+            client.settings.maxFanout,
+            maxAnalyzers ?? client.settings.maxFanout,
+          ),
+        );
+
+        if (analyzerAllowlist && analyzerAllowlist.length > 0) {
+          const wanted = analyzerAllowlist.map((n) => n.toLowerCase());
+          applicable = applicable.filter((a) =>
+            wanted.some((w) => a.name.toLowerCase().includes(w)),
+          );
+          if (applicable.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: JSON.stringify(
+                    {
+                      observable: { dataType, data, autoDetected },
+                      analyzersRun: 0,
+                      message: `None of the requested analyzers (${analyzerAllowlist.join(", ")}) are enabled for data type "${dataType}". Use cortex_list_analyzers to see available analyzers.`,
+                    },
+                    null,
+                    2,
+                  ),
+                },
+              ],
+            };
+          }
+        } else if (!fanOut) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify(
+                  {
+                    observable: { dataType, data, autoDetected },
+                    analyzersRun: 0,
+                    applicableAnalyzers: applicable.map((a) => a.name),
+                    message: `No analyzers run. Pass an explicit \`analyzers\` allowlist (recommended), or set fanOut=true to run all applicable analyzers (up to ${cap}). Auto-fanout is opt-in because it submits this observable to multiple third-party services.`,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+
+        const capped = applicable.length > cap;
+        const selected = applicable.slice(0, cap);
+
+        // Step 2: Submit observable to each selected analyzer. Carry the
+        // originating analyzer through Promise.allSettled so names always track
+        // the correct analyzer even after filtering rejected results.
         const submissions = await Promise.allSettled(
-          applicable.map(async (analyzer) => {
+          selected.map(async (analyzer) => {
             const job = await client.runAnalyzer(analyzer.id, {
               data,
               dataType: dataType!,
@@ -139,23 +219,22 @@ export function registerBulkTools(
           }),
         );
 
-        const submitted = submissions
-          .filter(
-            (r): r is PromiseFulfilledResult<{ analyzer: string; jobId: string }> =>
-              r.status === "fulfilled",
-          )
-          .map((r) => r.value);
+        const submitted: Array<{ analyzer: string; jobId: string }> = [];
+        const failed: Array<{ analyzer: string; error: string }> = [];
+        submissions.forEach((r, i) => {
+          if (r.status === "fulfilled") {
+            submitted.push(r.value);
+          } else {
+            failed.push({
+              analyzer: selected[i].name,
+              error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+            });
+          }
+        });
 
-        const failed = submissions
-          .filter(
-            (r): r is PromiseRejectedResult => r.status === "rejected",
-          )
-          .map((r, i) => ({
-            analyzer: applicable[i].name,
-            error: r.reason instanceof Error ? r.reason.message : String(r.reason),
-          }));
-
-        // Step 3: Wait for all jobs to complete
+        // Step 3: Wait for all jobs to complete. Carry the analyzer name
+        // through so a rejected wait still attributes to the right analyzer
+        // (indexing into `submitted` by position is order-aligned and robust).
         const reports = await Promise.allSettled(
           submitted.map(async ({ analyzer, jobId }) => {
             const report = await client.waitAndGetReport(jobId, timeout);
@@ -171,7 +250,7 @@ export function registerBulkTools(
           taxonomies: string[];
         }> = [];
 
-        for (const result of reports) {
+        reports.forEach((result, i) => {
           if (result.status === "fulfilled") {
             const { analyzer, report } = result.value;
             const taxonomies = report.report?.summary?.taxonomies ?? [];
@@ -188,15 +267,14 @@ export function registerBulkTools(
             });
           } else {
             results.push({
-              analyzer:
-                submitted[reports.indexOf(result)]?.analyzer ?? "unknown",
+              analyzer: submitted[i]?.analyzer ?? "unknown",
               status: "Error",
               taxonomies: [
                 `Error: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
               ],
             });
           }
-        }
+        });
 
         // Summary by taxonomy level
         const levelCounts = {
@@ -215,6 +293,10 @@ export function registerBulkTools(
                   observable: { dataType, data, autoDetected },
                   analyzersRun: submitted.length,
                   analyzersFailed: failed.length,
+                  analyzersSkippedByCap: capped
+                    ? applicable.length - selected.length
+                    : 0,
+                  cap,
                   summary: levelCounts,
                   results,
                   submissionErrors: failed.length > 0 ? failed : undefined,

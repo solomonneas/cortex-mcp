@@ -242,12 +242,29 @@ export function registerJobTools(
 
   server.tool(
     "cortex_delete_job",
-    "Delete a specific analysis job by ID",
+    "Delete a specific analysis job by ID. DESTRUCTIVE: requires confirm=true.",
     {
       jobId: z.string().describe("The job ID to delete"),
+      confirm: z
+        .boolean()
+        .default(false)
+        .describe(
+          "Must be set to true to actually delete the job. Defaults to false as a safety guard.",
+        ),
     },
-    async ({ jobId }) => {
+    async ({ jobId, confirm }) => {
       try {
+        if (!confirm) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Job NOT deleted. Deletion is irreversible. Re-call with confirm=true to delete job "${jobId}".`,
+              },
+            ],
+            isError: true,
+          };
+        }
         await client.deleteJob(jobId);
         return {
           content: [

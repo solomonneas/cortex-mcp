@@ -1,8 +1,39 @@
 import { z } from "zod";
-import { readFile } from "node:fs/promises";
-import { basename } from "node:path";
+import { readFile, realpath } from "node:fs/promises";
+import { basename, resolve, sep } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CortexClient } from "../client.js";
+
+/**
+ * Resolve `filePath` and confine it to `baseDir` (the configured
+ * CORTEX_FILE_BASE_DIR). Returns the safe absolute path, or throws if the
+ * resolved path escapes the base directory. Uses realpath on both sides so
+ * symlinks cannot be used to break out of the jail.
+ *
+ * Throws a sentinel-typed Error so callers can render a clear, non-leaky
+ * message regardless of the underlying fs error.
+ */
+async function resolveContainedFilePath(
+  filePath: string,
+  baseDir: string,
+): Promise<string> {
+  // Realpath the base dir first (it must exist and be a real directory).
+  const realBase = await realpath(resolve(baseDir));
+
+  // Resolve the candidate relative to the base dir. An absolute filePath that
+  // points outside realBase will be caught by the containment check below.
+  const candidate = resolve(realBase, filePath);
+
+  // Realpath the candidate to defeat symlink escapes. The file must exist.
+  const realCandidate = await realpath(candidate);
+
+  const baseWithSep = realBase.endsWith(sep) ? realBase : realBase + sep;
+  if (realCandidate !== realBase && !realCandidate.startsWith(baseWithSep)) {
+    throw new Error("PATH_OUTSIDE_BASE");
+  }
+
+  return realCandidate;
+}
 
 const DATA_TYPES = [
   "ip",
@@ -260,7 +291,9 @@ export function registerAnalyzerTools(
       filePath: z
         .string()
         .optional()
-        .describe("Path to the file to analyze (local filesystem)"),
+        .describe(
+          "Path to the file to analyze. Confined to the CORTEX_FILE_BASE_DIR directory; paths outside it (or filesystem reads when CORTEX_FILE_BASE_DIR is unset) are refused. Use fileBase64 for arbitrary content.",
+        ),
       fileBase64: z
         .string()
         .optional()
@@ -298,8 +331,40 @@ export function registerAnalyzerTools(
         let name: string;
 
         if (filePath) {
-          content = await readFile(filePath);
-          name = filename ?? basename(filePath);
+          const baseDir = client.settings.fileBaseDir;
+          if (!baseDir) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: "Reading files from filePath is disabled. Set CORTEX_FILE_BASE_DIR to an allowed base directory to enable it, or submit the file via fileBase64 instead.",
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          let safePath: string;
+          try {
+            safePath = await resolveContainedFilePath(filePath, baseDir);
+          } catch (e) {
+            const reason =
+              e instanceof Error && e.message === "PATH_OUTSIDE_BASE"
+                ? `filePath resolves outside the allowed base directory (CORTEX_FILE_BASE_DIR).`
+                : `filePath could not be resolved within the allowed base directory (CORTEX_FILE_BASE_DIR). Ensure the file exists and is inside that directory.`;
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Refused to read file: ${reason}`,
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          content = await readFile(safePath);
+          name = filename ?? basename(safePath);
         } else if (fileBase64) {
           if (!filename) {
             return {

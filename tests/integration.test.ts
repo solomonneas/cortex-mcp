@@ -24,6 +24,8 @@ describe.skipIf(!shouldRun)("Integration: Live Cortex Instance", () => {
       superadminKey: CORTEX_SUPERADMIN_KEY,
       verifySsl: false,
       timeout: 30000,
+      allowDestructive: false,
+      maxFanout: 10,
     };
     client = new CortexClient(config);
   });
@@ -325,6 +327,8 @@ describe.skipIf(!shouldRun)("Integration: Live Cortex Instance", () => {
         apiKey: "invalid-key-12345",
         verifySsl: false,
         timeout: 10000,
+        allowDestructive: false,
+        maxFanout: 10,
       };
       const badClient = new CortexClient(badConfig);
 

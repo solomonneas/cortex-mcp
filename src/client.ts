@@ -1,3 +1,4 @@
+import { Agent } from "undici";
 import type { CortexConfig } from "./config.js";
 import type {
   Analyzer,
@@ -20,10 +21,44 @@ import type {
 export class CortexClient {
   private baseUrl: string;
   private timeout: number;
+  /**
+   * Scoped undici dispatcher used only for Cortex requests. When SSL
+   * verification is disabled, this Agent relaxes cert checks for THIS client's
+   * traffic only, instead of flipping the process-global
+   * NODE_TLS_REJECT_UNAUTHORIZED, which would weaken TLS for the whole process.
+   */
+  private dispatcher?: Agent;
 
   constructor(private config: CortexConfig) {
     this.baseUrl = `${config.url}/api`;
     this.timeout = config.timeout;
+    if (!config.verifySsl) {
+      this.dispatcher = new Agent({
+        connect: { rejectUnauthorized: false },
+      });
+    }
+  }
+
+  /**
+   * Extra fetch init carrying the scoped dispatcher (when present). undici's
+   * `dispatcher` is not in the lib.dom RequestInit type, so it is attached via
+   * a loosely-typed object.
+   */
+  private get fetchInit(): Record<string, unknown> {
+    return this.dispatcher ? { dispatcher: this.dispatcher } : {};
+  }
+
+  /** Read-only view of safety-relevant configuration for tool gating. */
+  get settings(): {
+    fileBaseDir?: string;
+    allowDestructive: boolean;
+    maxFanout: number;
+  } {
+    return {
+      fileBaseDir: this.config.fileBaseDir,
+      allowDestructive: this.config.allowDestructive,
+      maxFanout: this.config.maxFanout,
+    };
   }
 
   private async request<T>(
@@ -50,6 +85,7 @@ export class CortexClient {
     try {
       const response = await fetch(url, {
         ...options,
+        ...this.fetchInit,
         headers: { ...headers, ...(options.headers as Record<string, string>) },
         signal: controller.signal,
       });
@@ -106,6 +142,7 @@ export class CortexClient {
     try {
       const response = await fetch(url, {
         ...options,
+        ...this.fetchInit,
         headers: { ...headers, ...(options.headers as Record<string, string>) },
         signal: controller.signal,
       });
@@ -197,6 +234,7 @@ export class CortexClient {
 
       const response = await fetch(url, {
         method: "POST",
+        ...this.fetchInit,
         headers: {
           Authorization: `Bearer ${this.config.apiKey}`,
         },

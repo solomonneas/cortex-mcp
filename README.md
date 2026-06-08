@@ -56,8 +56,21 @@ npm run build
 | `CORTEX_URL` | Yes | - | Cortex base URL (e.g., `http://cortex.example.com:9001`) |
 | `CORTEX_API_KEY` | Yes | - | API key for normal operations (org admin level) |
 | `CORTEX_SUPERADMIN_KEY` | No | - | Superadmin API key for org/user/definition management |
-| `CORTEX_VERIFY_SSL` | No | `true` | Set to `false` to skip SSL verification |
+| `CORTEX_VERIFY_SSL` | No | `true` | Set to `false` to skip SSL verification. Applied via a scoped HTTP dispatcher for Cortex requests only; it does **not** disable TLS verification process-wide. |
 | `CORTEX_TIMEOUT` | No | `30` | Request timeout in seconds |
+| `CORTEX_FILE_BASE_DIR` | No | - | Absolute base directory that `cortex_run_analyzer_file` may read files from. `filePath` is confined to this directory (realpath checked to defeat symlink/`..` escapes); paths outside it are refused. When unset, reading files by path is **disabled** and you must submit file content via `fileBase64`. |
+| `CORTEX_ALLOW_DESTRUCTIVE` | No | `0` | Set to `1` (or `true`) to permit running responders (`cortex_run_responder`), which cause real-world side effects. Off by default. Responders also require `confirm=true` per call. |
+| `CORTEX_MAX_FANOUT` | No | `10` | Maximum number of analyzers `cortex_analyze_observable` will submit to in a single call when fanning out. |
+
+### Security & safety gates
+
+This server can trigger real-world actions and submit observables to third-party services, so several capabilities are secured by default:
+
+- **Arbitrary file reads are blocked.** `cortex_run_analyzer_file` only reads files inside `CORTEX_FILE_BASE_DIR` (realpath-confined to defeat symlink/`..` escapes). With no base dir configured, path-based reads are refused; use `fileBase64` to submit content explicitly.
+- **Responders are gated.** `cortex_run_responder` requires both `CORTEX_ALLOW_DESTRUCTIVE=1` in the environment **and** `confirm=true` in the call.
+- **Single-item destructive tools require confirmation.** `cortex_delete_job` and `cortex_disable_analyzer` require `confirm=true`.
+- **Bulk analysis is conservative.** `cortex_analyze_observable` does **not** fan out to every analyzer by default. Pass an explicit `analyzers` allowlist, or set `fanOut=true` to run all applicable analyzers (capped by `CORTEX_MAX_FANOUT`).
+- **SSL verification is scoped.** Disabling `CORTEX_VERIFY_SSL` relaxes TLS only for Cortex connections, never for the whole Node process.
 
 ## Usage
 
@@ -213,7 +226,7 @@ npm start
 | `cortex_get_analyzer` | Get details about a specific analyzer by ID |
 | `cortex_run_analyzer` | Submit an observable to a specific analyzer for analysis |
 | `cortex_run_analyzer_by_name` | Run an analyzer by name instead of ID (convenience wrapper) |
-| `cortex_run_analyzer_file` | Submit a file (from path or base64) to an analyzer for analysis |
+| `cortex_run_analyzer_file` | Submit a file to an analyzer. `filePath` is confined to `CORTEX_FILE_BASE_DIR` (disabled if unset); or pass `fileBase64` |
 
 ### Analyzer Definition Tools
 
@@ -221,7 +234,7 @@ npm start
 |------|-------------|
 | `cortex_list_analyzer_definitions` | Browse all 260+ available analyzer definitions with filtering (by data type, free/no-config, search) |
 | `cortex_enable_analyzer` | Enable an analyzer definition in the current org with configuration |
-| `cortex_disable_analyzer` | Disable (remove) an enabled analyzer |
+| `cortex_disable_analyzer` | Disable (remove) an enabled analyzer (destructive; requires `confirm=true`) |
 
 ### Job Tools
 
@@ -232,7 +245,7 @@ npm start
 | `cortex_wait_and_get_report` | Wait for a job to complete and return the report |
 | `cortex_list_jobs` | List recent analysis jobs with optional filters |
 | `cortex_get_job_artifacts` | Get artifacts (extracted IOCs) from a completed job |
-| `cortex_delete_job` | Delete a specific job |
+| `cortex_delete_job` | Delete a specific job (destructive; requires `confirm=true`) |
 | `cortex_cleanup_jobs` | Bulk delete jobs by status or age (with dry-run) |
 
 ### Responder Tools
@@ -240,7 +253,7 @@ npm start
 | Tool | Description |
 |------|-------------|
 | `cortex_list_responders` | List all enabled responders, optionally filtered by data type |
-| `cortex_run_responder` | Execute a responder action against a TheHive entity |
+| `cortex_run_responder` | Execute a responder action against a TheHive entity (destructive; requires `CORTEX_ALLOW_DESTRUCTIVE=1` and `confirm=true`) |
 
 ### Responder Definition Tools
 
@@ -254,7 +267,7 @@ npm start
 
 | Tool | Description |
 |------|-------------|
-| `cortex_analyze_observable` | Run ALL applicable analyzers with auto-detected data type and aggregated taxonomy results |
+| `cortex_analyze_observable` | Run analyzers against an observable (auto-detected data type) and aggregate taxonomy results. Pass an `analyzers` allowlist, or `fanOut=true` to run all applicable analyzers (capped by `CORTEX_MAX_FANOUT`) |
 
 ### Organization Management (superadmin)
 
@@ -301,14 +314,16 @@ npm start
 1. Use cortex_list_analyzer_definitions with freeOnly=true to find analyzers
    that need no API keys.
 2. Use cortex_enable_analyzer to enable "Abuse_Finder_3_0" with empty config.
-3. Use cortex_analyze_observable with data "8.8.8.8" to analyze the IP.
+3. Use cortex_analyze_observable with data "8.8.8.8" and fanOut=true to run
+   all applicable analyzers (or pass analyzers ["Abuse_Finder"] to scope it).
 ```
 
 ### Auto-detect observable type
 
 ```
-Use cortex_analyze_observable with data "185.220.101.42"
-(no dataType needed - auto-detects as IP)
+Use cortex_analyze_observable with data "185.220.101.42" and fanOut=true
+(no dataType needed - auto-detects as IP). Or pass an `analyzers` allowlist
+to limit which analyzers run.
 ```
 
 ### Clean up old failed jobs
@@ -321,8 +336,10 @@ then dryRun false to delete.
 ### Analyze a file
 
 ```
+Set CORTEX_FILE_BASE_DIR=/srv/cortex-uploads in the server environment, then:
 Use cortex_run_analyzer_file with analyzerId "Yara_3_0",
-filePath "/tmp/suspicious.exe" to scan with YARA rules.
+filePath "/srv/cortex-uploads/suspicious.exe" to scan with YARA rules.
+(Paths outside CORTEX_FILE_BASE_DIR are refused; alternatively pass fileBase64.)
 ```
 
 ### Manage API keys

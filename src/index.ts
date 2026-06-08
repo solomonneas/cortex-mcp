@@ -17,9 +17,10 @@ import { registerPrompts } from "./prompts.js";
 async function main(): Promise<void> {
   const config = getConfig();
 
-  if (!config.verifySsl) {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-  }
+  // SSL verification is handled per-request via a scoped undici dispatcher in
+  // CortexClient (see config.verifySsl). We deliberately do NOT touch the
+  // process-global NODE_TLS_REJECT_UNAUTHORIZED, which would weaken TLS for
+  // every outbound connection in the process.
 
   const server = new McpServer({
     name: "cortex-mcp",
