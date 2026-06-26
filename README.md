@@ -5,49 +5,54 @@
 <h1 align="center">cortex-mcp</h1>
 
 <p align="center">
-  <strong>MCP server for Cortex observable analysis and response automation.</strong>
+  <strong>An MCP server that lets an AI client run Cortex observable analysis and response, end to end.</strong>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/actions/workflow/status/solomonneas/cortex-mcp/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white" alt="CI status">
-  <img src="https://img.shields.io/npm/v/thehive-cortex-mcp?style=for-the-badge&logo=npm&logoColor=white" alt="npm version">
-  <img src="https://img.shields.io/badge/typescript-6.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript 6.0">
-  <img src="https://img.shields.io/badge/node.js-20%2B-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js 20+">
-  <img src="https://img.shields.io/badge/MCP-SDK_1.29-7c3aed?style=for-the-badge" alt="MCP SDK 1.29">
-  <img src="https://img.shields.io/badge/Cortex-observable_analysis-52c7c9?style=for-the-badge" alt="Cortex observable analysis">
-  <img src="https://img.shields.io/badge/Vitest-4-6E9F18?style=for-the-badge&logo=vitest&logoColor=white" alt="Vitest 4">
+  <img src="https://img.shields.io/npm/v/thehive-cortex-mcp?style=for-the-badge&logo=npm&logoColor=white&label=thehive-cortex-mcp" alt="npm version">
+  <img src="https://img.shields.io/github/actions/workflow/status/lidless-labs/cortex-mcp/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white" alt="CI status">
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License">
+  <img src="https://img.shields.io/badge/MCP-server-7c3aed?style=for-the-badge" alt="MCP server">
+  <img src="https://img.shields.io/badge/node.js-20%2B-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js 20+">
 </p>
 
-An MCP (Model Context Protocol) server for [Cortex](https://docs.strangebee.com/cortex/) by StrangeBee/TheHive Project. Cortex automates observable analysis (IPs, URLs, hashes, domains, emails, files) using analyzers and executes response actions via responders. This MCP server exposes Cortex's full analysis and administration pipeline to LLMs.
+<p align="center">
+  <strong>Website:</strong> <a href="https://lidless.dev/cortex-mcp">https://lidless.dev/cortex-mcp</a>
+</p>
 
-## Features
+cortex-mcp is a Model Context Protocol (MCP) server for [Cortex](https://docs.strangebee.com/cortex/), the observable analysis and active-response engine from StrangeBee/TheHive Project. It exists because analysts already drive Cortex by hand through its web UI or raw REST API, and an AI client can do that work faster: detonate an indicator across every applicable analyzer, aggregate the taxonomy verdicts, and pull artifacts without anyone clicking through a dozen jobs. It differs from a generic HTTP bridge by exposing Cortex's real domain model as 31 typed MCP tools, auto-detecting observable data types, fanning out analysis with a cap, and gating every destructive action (responders, deletes, file reads) behind explicit confirmation.
 
-- **31 MCP tools** covering the complete Cortex API surface
-- **4 MCP resources** for browsing Cortex state
-- **4 MCP prompts** with guided workflows (setup, investigation, triage)
-- Full analyzer/responder lifecycle: browse definitions, enable, configure, disable
-- Auto-detection of observable data types (IP, domain, hash, URL, email)
-- Bulk analysis across all applicable analyzers with taxonomy aggregation
-- Job cleanup with dry-run support
-- User API key management (create, renew, retrieve)
-- Organization CRUD with status management
-- Dual API key support: org-level operations + superadmin administration
+## What it does
+
+cortex-mcp connects an MCP-capable AI client (Claude Desktop, Claude Code, Codex CLI, OpenClaw, Hermes, and others) to a running Cortex instance so the model can perform real observable analysis and threat-intelligence enrichment. Cortex is the analyzer/responder engine in the StrangeBee and TheHive SOAR stack: it runs analyzers against observables (IPs, domains, URLs, file hashes, emails, files) and executes responders against TheHive entities. This server speaks Cortex's REST API and projects the full pipeline as MCP tools, resources, and prompts, so an agent can browse analyzer definitions, enable and configure them, submit observables, wait for job reports, extract IOC artifacts, and triage alerts. Auto-detection classifies an observable's data type before analysis, bulk analysis fans out across applicable analyzers and aggregates the taxonomy results, and superadmin tools cover organization and user/API-key management. The result is conversational observable analysis: ask "what does Cortex think of `185.220.101.42`?" and get an aggregated multi-analyzer verdict back.
+
+## Try it (copy-paste MCP client config)
+
+Add this to your MCP client config (this example is Claude Desktop's `claude_desktop_config.json`; the same `command`/`args`/`env` shape works for Claude Code, Codex, OpenClaw, and Hermes). It runs the published npm package directly with `npx`, no clone or build required:
+
+```json
+{
+  "mcpServers": {
+    "cortex": {
+      "command": "npx",
+      "args": ["-y", "thehive-cortex-mcp"],
+      "env": {
+        "CORTEX_URL": "http://cortex.example.com:9001",
+        "CORTEX_API_KEY": "your-org-admin-key",
+        "CORTEX_SUPERADMIN_KEY": "your-superadmin-key"
+      }
+    }
+  }
+}
+```
+
+The npm package is named [`thehive-cortex-mcp`](https://www.npmjs.com/package/thehive-cortex-mcp); it installs a `cortex-mcp` binary. Set `CORTEX_SUPERADMIN_KEY` only if you want the organization and user management tools.
 
 ## Prerequisites
 
 - Node.js 20 or later
 - A running Cortex instance (v3.x recommended)
 - A Cortex API key with appropriate permissions
-
-## Installation
-
-```bash
-git clone https://github.com/solomonneas/cortex-mcp.git
-cd cortex-mcp
-npm install
-npm run build
-```
 
 ## Configuration
 
@@ -62,7 +67,7 @@ npm run build
 | `CORTEX_ALLOW_DESTRUCTIVE` | No | `0` | Set to `1` (or `true`) to permit running responders (`cortex_run_responder`), which cause real-world side effects. Off by default. Responders also require `confirm=true` per call. |
 | `CORTEX_MAX_FANOUT` | No | `10` | Maximum number of analyzers `cortex_analyze_observable` will submit to in a single call when fanning out. |
 
-### Security & safety gates
+### Security and safety gates
 
 This server can trigger real-world actions and submit observables to third-party services, so several capabilities are secured by default:
 
@@ -72,26 +77,20 @@ This server can trigger real-world actions and submit observables to third-party
 - **Bulk analysis is conservative.** `cortex_analyze_observable` does **not** fan out to every analyzer by default. Pass an explicit `analyzers` allowlist, or set `fanOut=true` to run all applicable analyzers (capped by `CORTEX_MAX_FANOUT`).
 - **SSL verification is scoped.** Disabling `CORTEX_VERIFY_SSL` relaxes TLS only for Cortex connections, never for the whole Node process.
 
-## Usage
+## Installation from source
 
-### Claude Desktop
+If you prefer to run from a checkout instead of `npx`:
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
-
-```json
-{
-  "mcpServers": {
-    "cortex": {
-      "command": "cortex-mcp",
-      "env": {
-        "CORTEX_URL": "http://cortex.example.com:9001",
-        "CORTEX_API_KEY": "your-org-admin-key",
-        "CORTEX_SUPERADMIN_KEY": "your-superadmin-key"
-      }
-    }
-  }
-}
+```bash
+git clone https://github.com/lidless-labs/cortex-mcp.git
+cd cortex-mcp
+npm install
+npm run build
 ```
+
+Then point your client at the built binary (see the per-client recipes below).
+
+## Usage
 
 ### Claude Code
 
@@ -100,19 +99,17 @@ claude mcp add cortex \
   --env CORTEX_URL=http://cortex.example.com:9001 \
   --env CORTEX_API_KEY=your-org-admin-key \
   --env CORTEX_SUPERADMIN_KEY=your-superadmin-key \
-  -- cortex-mcp
+  -- npx -y thehive-cortex-mcp
 ```
 
 Add `--scope user` to make it available from any directory instead of only the current project.
 
 ### OpenClaw
 
-If you're running from a source checkout instead of the npm-installed binary, point `command`/`args` at the built `dist/index.js`:
-
 ```bash
 openclaw mcp set cortex '{
-  "command": "node",
-  "args": ["/absolute/path/to/cortex-mcp/dist/index.js"],
+  "command": "npx",
+  "args": ["-y", "thehive-cortex-mcp"],
   "env": {
     "CORTEX_URL": "http://cortex.example.com:9001",
     "CORTEX_API_KEY": "your-org-admin-key",
@@ -121,11 +118,12 @@ openclaw mcp set cortex '{
 }'
 ```
 
-Or, with the global npm install:
+If you are running from a source checkout instead, point `command`/`args` at the built `dist/index.js`:
 
 ```bash
 openclaw mcp set cortex '{
-  "command": "cortex-mcp",
+  "command": "node",
+  "args": ["/absolute/path/to/cortex-mcp/dist/index.js"],
   "env": {
     "CORTEX_URL": "http://cortex.example.com:9001",
     "CORTEX_API_KEY": "your-org-admin-key",
@@ -148,20 +146,8 @@ openclaw mcp list   # confirm "cortex" is registered
 ```yaml
 mcp_servers:
   cortex:
-    command: "cortex-mcp"
-    env:
-      CORTEX_URL: "http://cortex.example.com:9001"
-      CORTEX_API_KEY: "your-org-admin-key"
-      CORTEX_SUPERADMIN_KEY: "your-superadmin-key"
-```
-
-Or, when running from a source checkout instead of the global npm install:
-
-```yaml
-mcp_servers:
-  cortex:
-    command: "node"
-    args: ["/absolute/path/to/cortex-mcp/dist/index.js"]
+    command: "npx"
+    args: ["-y", "thehive-cortex-mcp"]
     env:
       CORTEX_URL: "http://cortex.example.com:9001"
       CORTEX_API_KEY: "your-org-admin-key"
@@ -183,17 +169,7 @@ codex mcp add cortex \
   --env CORTEX_URL=http://cortex.example.com:9001 \
   --env CORTEX_API_KEY=your-org-admin-key \
   --env CORTEX_SUPERADMIN_KEY=your-superadmin-key \
-  -- cortex-mcp
-```
-
-Or, when running from a source checkout:
-
-```bash
-codex mcp add cortex \
-  --env CORTEX_URL=http://cortex.example.com:9001 \
-  --env CORTEX_API_KEY=your-org-admin-key \
-  --env CORTEX_SUPERADMIN_KEY=your-superadmin-key \
-  -- node /absolute/path/to/cortex-mcp/dist/index.js
+  -- npx -y thehive-cortex-mcp
 ```
 
 Codex writes the entry to `~/.codex/config.toml` under `[mcp_servers.cortex]`. Verify with:
@@ -207,7 +183,7 @@ codex mcp list
 ```bash
 export CORTEX_URL=http://cortex.example.com:9001
 export CORTEX_API_KEY=your-org-admin-key
-npm start
+npx -y thehive-cortex-mcp     # or `npm start` from a source checkout
 ```
 
 ## MCP Tools (31)
@@ -232,7 +208,7 @@ npm start
 
 | Tool | Description |
 |------|-------------|
-| `cortex_list_analyzer_definitions` | Browse all 260+ available analyzer definitions with filtering (by data type, free/no-config, search) |
+| `cortex_list_analyzer_definitions` | Browse all available analyzer definitions with filtering (by data type, free/no-config, search) |
 | `cortex_enable_analyzer` | Enable an analyzer definition in the current org with configuration |
 | `cortex_disable_analyzer` | Disable (remove) an enabled analyzer (destructive; requires `confirm=true`) |
 
@@ -259,7 +235,7 @@ npm start
 
 | Tool | Description |
 |------|-------------|
-| `cortex_list_responder_definitions` | Browse all 137+ available responder definitions with filtering |
+| `cortex_list_responder_definitions` | Browse all available responder definitions with filtering |
 | `cortex_enable_responder` | Enable a responder definition with configuration |
 | `cortex_disable_responder` | Disable (remove) an enabled responder |
 
@@ -293,8 +269,8 @@ npm start
 | URI | Description |
 |-----|-------------|
 | `cortex://analyzers` | Enabled analyzers with capabilities |
-| `cortex://analyzer-definitions` | All 260+ available analyzer definitions with config requirements |
-| `cortex://responder-definitions` | All 137+ available responder definitions with config requirements |
+| `cortex://analyzer-definitions` | All available analyzer definitions with config requirements |
+| `cortex://responder-definitions` | All available responder definitions with config requirements |
 | `cortex://jobs/recent` | Last 50 analysis jobs |
 
 ## MCP Prompts (4)
@@ -359,26 +335,40 @@ detected" and observables "185.220.101.42, evil.example.com, 44d88612fea8a8f36de
 
 | Type | Examples | Auto-detected |
 |------|----------|---------------|
-| `ip` | `8.8.8.8`, `2001:db8::1` | ✅ |
-| `domain` | `example.com` | ✅ |
-| `url` | `https://malware.example.com/payload` | ✅ |
-| `hash` | MD5, SHA1, SHA256, SHA512 | ✅ |
-| `mail` | `user@example.com` | ✅ | <!-- content-guard: allow email -->
+| `ip` | `8.8.8.8`, `2001:db8::1` | yes |
+| `domain` | `example.com` | yes |
+| `url` | `https://malware.example.com/payload` | yes |
+| `hash` | MD5, SHA1, SHA256, SHA512 | yes |
+| `mail` | `user@example.com` | yes | <!-- content-guard: allow email -->
 | `fqdn` | `mail.example.com` | As domain |
 | `filename` | `malware.exe` | Manual |
 | `registry` | `HKLM\Software\Malware` | Manual |
 | `file` | Binary file uploads | Manual |
 | `other` | CVEs, custom types | Manual |
 
+## Why not something else?
+
+- **The Cortex web UI** is built for one analyst clicking through jobs by hand. cortex-mcp puts the same engine behind an AI client, so analysis, taxonomy aggregation, and artifact extraction happen conversationally instead of through a dozen page loads.
+- **A raw REST wrapper or generic HTTP MCP bridge** gives a model an untyped endpoint and no domain knowledge. cortex-mcp models analyzers, responders, jobs, definitions, organizations, and users as 31 typed tools with auto data-type detection, capped fan-out, and built-in safety gates, so the agent works in Cortex's vocabulary rather than reconstructing the API from scratch.
+- **Wiring Cortex into a SOAR runbook or n8n flow** is great for fixed, pre-authored pipelines. This server is for the open-ended path: ad hoc enrichment, investigation, and triage where the analyst (or the agent) decides the next step as results come in.
+- **thehive-mcp** (the companion server) drives case and alert management in TheHive. cortex-mcp is the analysis-and-response layer; the two are complementary, not substitutes.
+
+## What cortex-mcp is not
+
+- It is **not** a Cortex replacement or a reimplementation of analyzers. It calls a Cortex instance you already run; Cortex still does the analysis.
+- It is **not** a SIEM, a case manager, or a TheHive client. Case and alert workflows belong to TheHive (see thehive-mcp).
+- It is **not** an autonomous responder. Destructive actions (responders, job deletion, file reads by path) are off or confirmation-gated by default and never fire silently.
+- It is **not** a hosted service. It runs locally as a stdio MCP server next to your client; nothing is sent anywhere except the Cortex instance you configure.
+
 ## Testing
 
 ```bash
-npm test              # Unit tests (36 tests)
+npm test              # Unit tests
 npm run test:watch    # Watch mode
 npm run lint          # Type check
 
 # Integration tests (requires live Cortex instance)
-CORTEX_URL=http://cortex:9001 \
+CORTEX_URL=http://cortex.example.com:9001 \
 CORTEX_API_KEY=your-key \
 CORTEX_SUPERADMIN_KEY=your-superadmin-key \
 npx vitest run tests/integration.test.ts
@@ -394,7 +384,7 @@ cortex-mcp/
     client.ts                 # Cortex REST API client (full surface)
     types.ts                  # Cortex API type definitions
     resources.ts              # MCP resources (4)
-    prompts.ts                # MCP prompts (2)
+    prompts.ts                # MCP prompts (4)
     tools/
       analyzers.ts            # Analyzer tools (list, get, run, run-by-name)
       analyzer-definitions.ts # Definition browsing, enable, disable
@@ -408,7 +398,7 @@ cortex-mcp/
   tests/
     client.test.ts            # API client unit tests
     tools.test.ts             # Tool handler unit tests
-    integration.test.ts       # Live instance integration tests (21 tests)
+    integration.test.ts       # Live instance integration tests
   scripts/
     proxmox_install.sh        # Proxmox LXC deployment script
 ```
@@ -418,9 +408,13 @@ cortex-mcp/
 ### Proxmox LXC
 
 ```bash
-bash -c "$(wget -qLO - https://raw.githubusercontent.com/solomonneas/cortex-mcp/main/scripts/proxmox_install.sh)"
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/lidless-labs/cortex-mcp/main/scripts/proxmox_install.sh)"
 ```
+
+## Contributing
+
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution path and [SECURITY.md](SECURITY.md) for reporting vulnerabilities. By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
