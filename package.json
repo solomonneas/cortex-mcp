@@ -21,11 +21,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/solomonneas/cortex-mcp.git"
+    "url": "https://github.com/lidless-labs/cortex-mcp.git"
   },
-  "homepage": "https://github.com/solomonneas/cortex-mcp#readme",
+  "homepage": "https://github.com/lidless-labs/cortex-mcp#readme",
   "bugs": {
-    "url": "https://github.com/solomonneas/cortex-mcp/issues"
+    "url": "https://github.com/lidless-labs/cortex-mcp/issues"
   },
   "keywords": [
     "mcp",
