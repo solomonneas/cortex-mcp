@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Lidless Labs tools
+    url: https://lidless.dev/cortex-mcp
+    about: Project page, the wider MCP tool catalog, and setup guidance.
+  - name: Cortex documentation
+    url: https://docs.strangebee.com/cortex/
+    about: Questions about Cortex itself, analyzers, or responders belong with StrangeBee/TheHive Project, not here.
+  - name: Security report
+    url: https://github.com/lidless-labs/cortex-mcp/security/policy
+    about: Do not file security issues publicly. See SECURITY.md.

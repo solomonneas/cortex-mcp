@@ -1,0 +1,60 @@
+name: Bug report
+description: Something is broken in cortex-mcp itself, such as a tool, the Cortex client, auto-detection, a safety gate, or the docs.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you run, and what did you expect versus what you got?
+      placeholder: |
+        I called cortex_analyze_observable with data "8.8.8.8" and fanOut=true and got X.
+        I expected Y.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: cortex-mcp version
+      description: The `thehive-cortex-mcp` version (from your client config or `npm ls`).
+      placeholder: 1.2.0
+    validations:
+      required: true
+  - type: input
+    id: cortex-version
+    attributes:
+      label: Cortex version
+      description: The Cortex instance version (from cortex_get_status or the Cortex UI).
+      placeholder: Cortex 3.1.7
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      description: Which client and version are you running cortex-mcp under?
+      placeholder: Claude Code 2.1.x, Codex CLI, OpenClaw, Hermes, etc.
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      placeholder: 20.11.1
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Full output
+      description: Paste the full tool output, stdout, and stderr. Redact API keys, private Cortex URLs, and hostnames, but keep enough for us to reproduce.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: scrub
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I have removed API keys, private Cortex URLs/hostnames, real IPs, and personal paths from this report.
+          required: true

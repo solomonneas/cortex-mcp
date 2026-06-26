@@ -1,0 +1,37 @@
+name: Feature request
+description: Suggest a new tool, resource, prompt, or capability for cortex-mcp.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: Describe the workflow you are trying to run through an AI client and where cortex-mcp falls short today.
+      placeholder: |
+        When triaging an alert I want the agent to do X against Cortex, but there is no tool for it.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed tool or change
+      description: What new tool/resource/prompt or behavior change would address it? If it maps to a specific Cortex API endpoint, name it.
+      placeholder: |
+        A `cortex_...` tool that calls the Cortex `/api/...` endpoint with inputs A, B, C.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing tools you tried, or other ways you have worked around this.
+    validations:
+      required: false
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety
+      description: cortex-mcp gates destructive actions by default.
+      options:
+        - label: If this capability causes real-world side effects (responders, deletions, writes), it should be confirmation-gated like the existing destructive tools.
+          required: false

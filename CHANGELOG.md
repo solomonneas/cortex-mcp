@@ -1,0 +1,39 @@
+# Changelog
+
+All notable changes to cortex-mcp are documented here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project aims
+to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- Maintainer-health docs: `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
+  GitHub issue forms (`bug`, `feature`, `config`), and a pull request template
+  with a no-PII / safety-gate checklist.
+- This changelog.
+
+### Changed
+
+- Rewrote the README to lead with what the server is, why it exists, and how it
+  differs; added a copy-paste MCP client config using `npx -y thehive-cortex-mcp`,
+  a prominent website link, and "Why not something else?" / "What cortex-mcp is
+  not" sections. Documentation only; no change to the server, tools, or behavior.
+
+## [1.2.0]
+
+### Added
+
+- 31 MCP tools spanning the Cortex API: status, analyzers, analyzer definitions,
+  jobs, responders, responder definitions, bulk analysis, and superadmin
+  organization/user management.
+- 4 MCP resources and 4 guided prompts (analyze-observable, investigate-ioc,
+  setup-cortex, triage-alert).
+- Observable data-type auto-detection and capped analyzer fan-out
+  (`CORTEX_MAX_FANOUT`).
+- Safety gates: confirmation-required destructive tools, responder execution
+  behind `CORTEX_ALLOW_DESTRUCTIVE`, `CORTEX_FILE_BASE_DIR`-confined file reads,
+  and scoped SSL verification.
+
+[Unreleased]: https://github.com/lidless-labs/cortex-mcp/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/lidless-labs/cortex-mcp/releases/tag/v1.2.0
