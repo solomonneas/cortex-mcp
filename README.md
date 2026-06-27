@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/cortex-mcp-banner.jpg" alt="cortex-mcp banner">
+  <img src="docs/assets/cortex-mcp-banner.jpg" alt="cortex-mcp banner" width="900">
 </p>
 
 <h1 align="center">cortex-mcp</h1>
@@ -9,15 +9,14 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/npm/v/thehive-cortex-mcp?style=for-the-badge&logo=npm&logoColor=white&label=thehive-cortex-mcp" alt="npm version">
-  <img src="https://img.shields.io/github/actions/workflow/status/lidless-labs/cortex-mcp/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white" alt="CI status">
-  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License">
-  <img src="https://img.shields.io/badge/MCP-server-7c3aed?style=for-the-badge" alt="MCP server">
-  <img src="https://img.shields.io/badge/node.js-20%2B-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js 20+">
+  <strong>Website:</strong> <a href="https://lidless.dev/cortex-mcp">https://lidless.dev/cortex-mcp</a>
 </p>
 
 <p align="center">
-  <strong>Website:</strong> <a href="https://lidless.dev/cortex-mcp">https://lidless.dev/cortex-mcp</a>
+  <img src="https://img.shields.io/npm/v/thehive-cortex-mcp?style=for-the-badge&logo=npm&label=npm" alt="npm version">
+  <img src="https://img.shields.io/github/actions/workflow/status/lidless-labs/cortex-mcp/ci.yml?branch=main&style=for-the-badge&label=ci" alt="CI status">
+  <img src="https://img.shields.io/badge/MCP-server-8A2BE2?style=for-the-badge" alt="MCP server">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License">
 </p>
 
 cortex-mcp is a Model Context Protocol (MCP) server for [Cortex](https://docs.strangebee.com/cortex/), the observable analysis and active-response engine from StrangeBee/TheHive Project. It exists because analysts already drive Cortex by hand through its web UI or raw REST API, and an AI client can do that work faster: detonate an indicator across every applicable analyzer, aggregate the taxonomy verdicts, and pull artifacts without anyone clicking through a dozen jobs. It differs from a generic HTTP bridge by exposing Cortex's real domain model as 31 typed MCP tools, auto-detecting observable data types, fanning out analysis with a cap, and gating every destructive action (responders, deletes, file reads) behind explicit confirmation.
@@ -25,6 +24,25 @@ cortex-mcp is a Model Context Protocol (MCP) server for [Cortex](https://docs.st
 ## What it does
 
 cortex-mcp connects an MCP-capable AI client (Claude Desktop, Claude Code, Codex CLI, OpenClaw, Hermes, and others) to a running Cortex instance so the model can perform real observable analysis and threat-intelligence enrichment. Cortex is the analyzer/responder engine in the StrangeBee and TheHive SOAR stack: it runs analyzers against observables (IPs, domains, URLs, file hashes, emails, files) and executes responders against TheHive entities. This server speaks Cortex's REST API and projects the full pipeline as MCP tools, resources, and prompts, so an agent can browse analyzer definitions, enable and configure them, submit observables, wait for job reports, extract IOC artifacts, and triage alerts. Auto-detection classifies an observable's data type before analysis, bulk analysis fans out across applicable analyzers and aggregates the taxonomy results, and superadmin tools cover organization and user/API-key management. The result is conversational observable analysis: ask "what does Cortex think of `185.220.101.42`?" and get an aggregated multi-analyzer verdict back.
+
+## Prerequisites
+
+- Node.js 20 or later
+- A running Cortex instance (v3.x recommended)
+- A Cortex API key with appropriate permissions
+
+## Installation from source
+
+If you prefer to run from a checkout instead of `npx`:
+
+```bash
+git clone https://github.com/lidless-labs/cortex-mcp.git
+cd cortex-mcp
+npm install
+npm run build
+```
+
+Then point your client at the built binary (see the per-client recipes below).
 
 ## Try it (copy-paste MCP client config)
 
@@ -47,48 +65,6 @@ Add this to your MCP client config (this example is Claude Desktop's `claude_des
 ```
 
 The npm package is named [`thehive-cortex-mcp`](https://www.npmjs.com/package/thehive-cortex-mcp); it installs a `cortex-mcp` binary. Set `CORTEX_SUPERADMIN_KEY` only if you want the organization and user management tools.
-
-## Prerequisites
-
-- Node.js 20 or later
-- A running Cortex instance (v3.x recommended)
-- A Cortex API key with appropriate permissions
-
-## Configuration
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `CORTEX_URL` | Yes | - | Cortex base URL (e.g., `http://cortex.example.com:9001`) |
-| `CORTEX_API_KEY` | Yes | - | API key for normal operations (org admin level) |
-| `CORTEX_SUPERADMIN_KEY` | No | - | Superadmin API key for org/user/definition management |
-| `CORTEX_VERIFY_SSL` | No | `true` | Set to `false` to skip SSL verification. Applied via a scoped HTTP dispatcher for Cortex requests only; it does **not** disable TLS verification process-wide. |
-| `CORTEX_TIMEOUT` | No | `30` | Request timeout in seconds |
-| `CORTEX_FILE_BASE_DIR` | No | - | Absolute base directory that `cortex_run_analyzer_file` may read files from. `filePath` is confined to this directory (realpath checked to defeat symlink/`..` escapes); paths outside it are refused. When unset, reading files by path is **disabled** and you must submit file content via `fileBase64`. |
-| `CORTEX_ALLOW_DESTRUCTIVE` | No | `0` | Set to `1` (or `true`) to permit running responders (`cortex_run_responder`), which cause real-world side effects. Off by default. Responders also require `confirm=true` per call. |
-| `CORTEX_MAX_FANOUT` | No | `10` | Maximum number of analyzers `cortex_analyze_observable` will submit to in a single call when fanning out. |
-
-### Security and safety gates
-
-This server can trigger real-world actions and submit observables to third-party services, so several capabilities are secured by default:
-
-- **Arbitrary file reads are blocked.** `cortex_run_analyzer_file` only reads files inside `CORTEX_FILE_BASE_DIR` (realpath-confined to defeat symlink/`..` escapes). With no base dir configured, path-based reads are refused; use `fileBase64` to submit content explicitly.
-- **Responders are gated.** `cortex_run_responder` requires both `CORTEX_ALLOW_DESTRUCTIVE=1` in the environment **and** `confirm=true` in the call.
-- **Single-item destructive tools require confirmation.** `cortex_delete_job` and `cortex_disable_analyzer` require `confirm=true`.
-- **Bulk analysis is conservative.** `cortex_analyze_observable` does **not** fan out to every analyzer by default. Pass an explicit `analyzers` allowlist, or set `fanOut=true` to run all applicable analyzers (capped by `CORTEX_MAX_FANOUT`).
-- **SSL verification is scoped.** Disabling `CORTEX_VERIFY_SSL` relaxes TLS only for Cortex connections, never for the whole Node process.
-
-## Installation from source
-
-If you prefer to run from a checkout instead of `npx`:
-
-```bash
-git clone https://github.com/lidless-labs/cortex-mcp.git
-cd cortex-mcp
-npm install
-npm run build
-```
-
-Then point your client at the built binary (see the per-client recipes below).
 
 ## Usage
 
@@ -282,6 +258,29 @@ npx -y thehive-cortex-mcp     # or `npm start` from a source checkout
 | `setup-cortex` | Guided setup wizard for fresh Cortex instances (enable free analyzers, configure API keys) |
 | `triage-alert` | Structured alert triage workflow with multi-observable analysis and risk assessment |
 
+## Configuration
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `CORTEX_URL` | Yes | - | Cortex base URL (e.g., `http://cortex.example.com:9001`) |
+| `CORTEX_API_KEY` | Yes | - | API key for normal operations (org admin level) |
+| `CORTEX_SUPERADMIN_KEY` | No | - | Superadmin API key for org/user/definition management |
+| `CORTEX_VERIFY_SSL` | No | `true` | Set to `false` to skip SSL verification. Applied via a scoped HTTP dispatcher for Cortex requests only; it does **not** disable TLS verification process-wide. |
+| `CORTEX_TIMEOUT` | No | `30` | Request timeout in seconds |
+| `CORTEX_FILE_BASE_DIR` | No | - | Absolute base directory that `cortex_run_analyzer_file` may read files from. `filePath` is confined to this directory (realpath checked to defeat symlink/`..` escapes); paths outside it are refused. When unset, reading files by path is **disabled** and you must submit file content via `fileBase64`. |
+| `CORTEX_ALLOW_DESTRUCTIVE` | No | `0` | Set to `1` (or `true`) to permit running responders (`cortex_run_responder`), which cause real-world side effects. Off by default. Responders also require `confirm=true` per call. |
+| `CORTEX_MAX_FANOUT` | No | `10` | Maximum number of analyzers `cortex_analyze_observable` will submit to in a single call when fanning out. |
+
+### Security and safety gates
+
+This server can trigger real-world actions and submit observables to third-party services, so several capabilities are secured by default:
+
+- **Arbitrary file reads are blocked.** `cortex_run_analyzer_file` only reads files inside `CORTEX_FILE_BASE_DIR` (realpath-confined to defeat symlink/`..` escapes). With no base dir configured, path-based reads are refused; use `fileBase64` to submit content explicitly.
+- **Responders are gated.** `cortex_run_responder` requires both `CORTEX_ALLOW_DESTRUCTIVE=1` in the environment **and** `confirm=true` in the call.
+- **Single-item destructive tools require confirmation.** `cortex_delete_job` and `cortex_disable_analyzer` require `confirm=true`.
+- **Bulk analysis is conservative.** `cortex_analyze_observable` does **not** fan out to every analyzer by default. Pass an explicit `analyzers` allowlist, or set `fanOut=true` to run all applicable analyzers (capped by `CORTEX_MAX_FANOUT`).
+- **SSL verification is scoped.** Disabling `CORTEX_VERIFY_SSL` relaxes TLS only for Cortex connections, never for the whole Node process.
+
 ## Examples
 
 ### Set up analyzers from scratch
@@ -346,6 +345,14 @@ detected" and observables "185.220.101.42, evil.example.com, 44d88612fea8a8f36de
 | `file` | Binary file uploads | Manual |
 | `other` | CVEs, custom types | Manual |
 
+## Deployment
+
+### Proxmox LXC
+
+```bash
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/lidless-labs/cortex-mcp/main/scripts/proxmox_install.sh)"
+```
+
 ## Why not something else?
 
 - **The Cortex web UI** is built for one analyst clicking through jobs by hand. cortex-mcp puts the same engine behind an AI client, so analysis, taxonomy aggregation, and artifact extraction happen conversationally instead of through a dozen page loads.
@@ -401,14 +408,6 @@ cortex-mcp/
     integration.test.ts       # Live instance integration tests
   scripts/
     proxmox_install.sh        # Proxmox LXC deployment script
-```
-
-## Deployment
-
-### Proxmox LXC
-
-```bash
-bash -c "$(wget -qLO - https://raw.githubusercontent.com/lidless-labs/cortex-mcp/main/scripts/proxmox_install.sh)"
 ```
 
 ## Contributing
